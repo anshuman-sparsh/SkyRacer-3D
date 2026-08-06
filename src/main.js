@@ -66,9 +66,18 @@ let animationFrameId = 0;
 let gameState = 'start';
 let wasBoosting = false;
 
+// Touch devices have no keyboard, so the prompts must name the gesture that works.
+const isTouchPrimary = window.matchMedia('(pointer: coarse)').matches;
+
 const STATE_COPY = {
-    start: ['PRESS ANY KEY TO START', 'SKYRACER FLIGHT SYSTEM READY'],
-    paused: ['GAME PAUSED', 'PRESS P OR RESUME TO CONTINUE'],
+    start: [
+        isTouchPrimary ? 'TAP TO START' : 'PRESS ANY KEY TO START',
+        'SKYRACER FLIGHT SYSTEM READY',
+    ],
+    paused: [
+        'GAME PAUSED',
+        isTouchPrimary ? 'TAP ANYWHERE OR PRESS RESUME' : 'PRESS P OR RESUME TO CONTINUE',
+    ],
     terminated: ['FLIGHT TERMINATED', 'NAVIGATION BARRIER CONTACT'],
 };
 
@@ -152,6 +161,20 @@ async function handleGameKey(event) {
     }
 
     if (event.code === 'Escape' || event.code === 'KeyP') togglePause();
+}
+
+/**
+ * Starts or resumes from a tap, which is the only way in on touch devices.
+ * The terminated screen is excluded so a stray tap cannot skip the results.
+ */
+function handleOverlayPointerDown(event) {
+    if (event.target.closest('button')) return;
+
+    if (gameState === 'start') {
+        void startRunning();
+    } else if (gameState === 'paused') {
+        togglePause();
+    }
 }
 
 async function handleAudioToggle() {
@@ -267,6 +290,7 @@ function disposeApp() {
     window.removeEventListener('resize', handleResize);
     window.removeEventListener('keydown', handleGameKey);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
+    stateOverlay.removeEventListener('pointerdown', handleOverlayPointerDown);
     audioButton.removeEventListener('click', handleAudioToggle);
     pauseButton.removeEventListener('click', togglePause);
     restartButton.removeEventListener('click', restartRun);
@@ -287,6 +311,7 @@ function disposeApp() {
 window.addEventListener('resize', handleResize);
 window.addEventListener('keydown', handleGameKey);
 document.addEventListener('visibilitychange', handleVisibilityChange);
+stateOverlay.addEventListener('pointerdown', handleOverlayPointerDown);
 audioButton.addEventListener('click', handleAudioToggle);
 pauseButton.addEventListener('click', togglePause);
 restartButton.addEventListener('click', restartRun);

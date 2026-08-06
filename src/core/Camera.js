@@ -1,16 +1,54 @@
 import * as THREE from 'three';
 
-const BASE_FOV = 60;
-const BOOST_FOV = 73;
-const LOOK_AHEAD = 20;
-const LOOK_HEIGHT = 1.2;
-const FOLLOW_HEIGHT = 3.8;
-const FOLLOW_DISTANCE = 8.5;
+const LANDSCAPE_PROFILE = Object.freeze({
+    baseFov: 60,
+    boostFov: 73,
+    lookAhead: 20,
+    lookHeight: 1.2,
+    followHeight: 3.8,
+    followDistance: 8.5,
+});
+
+const PORTRAIT_PROFILE = Object.freeze({
+    baseFov: 78,
+    boostFov: 86,
+    lookAhead: 25,
+    lookHeight: 2.8,
+    followHeight: 5.1,
+    followDistance: 14.5,
+});
+
+function sanitizeAspect(aspect) {
+    return Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
+}
+
+/**
+ * Blends rather than switches at aspect 1, preventing a visible camera jump while
+ * a phone rotates. The wider portrait FOV and longer follow distance restore side
+ * visibility without stretching the projection.
+ */
+function getViewportProfile(aspect) {
+    const safeAspect = sanitizeAspect(aspect);
+    const portraitAmount = THREE.MathUtils.smoothstep(1 - safeAspect, 0, 0.48);
+    const profile = {};
+
+    for (const key of Object.keys(LANDSCAPE_PROFILE)) {
+        profile[key] = THREE.MathUtils.lerp(
+            LANDSCAPE_PROFILE[key],
+            PORTRAIT_PROFILE[key],
+            portraitAmount,
+        );
+    }
+
+    return profile;
+}
 
 export function createCamera(aspect) {
-    const camera = new THREE.PerspectiveCamera(BASE_FOV, aspect, 0.1, 160);
-    camera.position.set(0, FOLLOW_HEIGHT, FOLLOW_DISTANCE);
-    camera.lookAt(0, LOOK_HEIGHT, -LOOK_AHEAD);
+    const safeAspect = sanitizeAspect(aspect);
+    const profile = getViewportProfile(safeAspect);
+    const camera = new THREE.PerspectiveCamera(profile.baseFov, safeAspect, 0.1, 160);
+    camera.position.set(0, profile.followHeight, profile.followDistance);
+    camera.lookAt(0, profile.lookHeight, -profile.lookAhead);
 
     return camera;
 }
@@ -18,6 +56,7 @@ export function createCamera(aspect) {
 export class CameraDynamics {
     constructor(camera) {
         this.camera = camera;
+        this.viewportProfile = getViewportProfile(camera.aspect);
         this.springPosition = camera.position.clone();
         this.springVelocity = new THREE.Vector3();
         this.desiredPosition = new THREE.Vector3();
@@ -39,16 +78,49 @@ export class CameraDynamics {
     #setLookTarget(craft) {
         this.lookTarget.set(
             craft.position.x,
-            craft.position.y + LOOK_HEIGHT,
-            craft.position.z - LOOK_AHEAD,
+            craft.position.y + this.viewportProfile.lookHeight,
+            craft.position.z - this.viewportProfile.lookAhead,
         );
     }
 
+    /** Updates projection and composition as one atomic viewport operation. */
+    resize(aspect, craft = null) {
+        const safeAspect = sanitizeAspect(aspect);
+        const previousProfile = this.viewportProfile;
+        const nextProfile = getViewportProfile(safeAspect);
+        const boostMix = THREE.MathUtils.clamp(
+            (this.camera.fov - previousProfile.baseFov)
+            / (previousProfile.boostFov - previousProfile.baseFov),
+            0,
+            1,
+        );
+
+        this.viewportProfile = nextProfile;
+        this.camera.aspect = safeAspect;
+        this.camera.fov = THREE.MathUtils.lerp(
+            nextProfile.baseFov,
+            nextProfile.boostFov,
+            boostMix,
+        );
+
+        if (craft) {
+            this.springPosition.y += nextProfile.followHeight - previousProfile.followHeight;
+            this.springPosition.z += nextProfile.followDistance - previousProfile.followDistance;
+            this.camera.position.copy(this.springPosition).add(this.impulse).add(this.shakeOffset);
+            this.#setLookTarget(craft);
+            this.camera.lookAt(this.lookTarget);
+            this.camera.rotateZ(this.lean);
+        }
+
+        this.camera.updateProjectionMatrix();
+    }
+
     snapTo(craft) {
+        const { followHeight, followDistance, baseFov } = this.viewportProfile;
         this.springPosition.set(
             craft.position.x,
-            craft.position.y + FOLLOW_HEIGHT,
-            craft.position.z + FOLLOW_DISTANCE,
+            craft.position.y + followHeight,
+            craft.position.z + followDistance,
         );
         this.springVelocity.set(0, 0, 0);
         this.impulse.set(0, 0, 0);
@@ -57,7 +129,7 @@ export class CameraDynamics {
         this.lean = 0;
         this.previousForwardSpeed = 0;
         this.camera.position.copy(this.springPosition);
-        this.camera.fov = BASE_FOV;
+        this.camera.fov = baseFov;
         this.camera.updateProjectionMatrix();
         this.#setLookTarget(craft);
         this.camera.lookAt(this.lookTarget);
@@ -70,10 +142,11 @@ export class CameraDynamics {
         const acceleration = Math.max(0, (forwardSpeed - this.previousForwardSpeed) / Math.max(dt, 0.001));
         const pullback = normalizedSpeed * 1.2 + Math.min(acceleration * 0.025, 0.8) + (isBoosting ? 2.1 : 0);
 
+        const { followHeight, followDistance } = this.viewportProfile;
         this.desiredPosition.set(
             craft.position.x,
-            craft.position.y + FOLLOW_HEIGHT,
-            craft.position.z + FOLLOW_DISTANCE + pullback,
+            craft.position.y + followHeight,
+            craft.position.z + followDistance + pullback,
         );
 
         const stiffness = 34;
@@ -93,7 +166,9 @@ export class CameraDynamics {
         this.lean = THREE.MathUtils.lerp(this.lean, targetLean, 1 - Math.exp(-6 * dt));
         this.camera.rotateZ(this.lean);
 
-        const targetFov = isBoosting ? BOOST_FOV : BASE_FOV;
+        const targetFov = isBoosting
+            ? this.viewportProfile.boostFov
+            : this.viewportProfile.baseFov;
         const response = 1 - Math.exp(-5 * dt);
         const nextFov = THREE.MathUtils.lerp(this.camera.fov, targetFov, response);
 
@@ -139,6 +214,6 @@ export class CameraDynamics {
 }
 
 export function resizeCamera(camera, aspect) {
-    camera.aspect = aspect;
+    camera.aspect = sanitizeAspect(aspect);
     camera.updateProjectionMatrix();
 }

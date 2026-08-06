@@ -80,9 +80,9 @@ export class HoverCraft extends THREE.Group {
     }
 
     #buildModel() {
-        const hullMaterial = new THREE.MeshPhongMaterial({ color: 0x35d3c2, shininess: 58, specular: 0xa6fff1 });
-        const trimMaterial = new THREE.MeshPhongMaterial({ color: 0xf0cb58, shininess: 72, specular: 0xfff2b0 });
-        const engineMaterial = new THREE.MeshPhongMaterial({ color: 0x263746, shininess: 42, specular: 0x7aa5b6 });
+        const hullMaterial = new THREE.MeshLambertMaterial({ color: 0x35d3c2, emissive: 0x063d38 });
+        const trimMaterial = new THREE.MeshLambertMaterial({ color: 0xf0cb58, emissive: 0x382b05 });
+        const engineMaterial = new THREE.MeshLambertMaterial({ color: 0x263746 });
         const canopyMaterial = new THREE.MeshToonMaterial({ color: 0x69b6df });
         const glowMaterial = new THREE.MeshBasicMaterial({ color: 0x7fffe8 });
 
@@ -142,8 +142,16 @@ export class HoverCraft extends THREE.Group {
             return;
         }
 
-        const horizontalInput = Number(inputState.moveRight) - Number(inputState.moveLeft);
-        const verticalInput = Number(inputState.moveUp) - Number(inputState.moveDown);
+        const horizontalInput = THREE.MathUtils.clamp(
+            Number(inputState.moveRight) - Number(inputState.moveLeft) + (inputState.steer ?? 0),
+            -1,
+            1,
+        );
+        const verticalInput = THREE.MathUtils.clamp(
+            Number(inputState.moveUp) - Number(inputState.moveDown) + (inputState.pitch ?? 0),
+            -1,
+            1,
+        );
         this.energyBoostTimeRemaining = Math.max(0, this.energyBoostTimeRemaining - dt);
         if (this.energyBoostTimeRemaining === 0) this.energyBoostMultiplier = 1;
 

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CameraDynamics, createCamera, resizeCamera } from './core/Camera.js';
+import { CameraDynamics, createCamera } from './core/Camera.js';
 import { createRenderer, resizeRenderer } from './core/Renderer.js';
 import { createScene } from './core/Scene.js';
 import { disposeEnergyRingResources } from './entities/EnergyRing.js';
@@ -56,15 +56,20 @@ const audioButton = document.querySelector('[data-audio-toggle]');
 const pauseButton = document.querySelector('[data-pause-toggle]');
 const pauseLabel = document.querySelector('[data-pause-label]');
 const touchBoostButton = document.querySelector('[data-touch-boost]');
+const touchIndicator = document.querySelector('[data-touch-indicator]');
+const touchIndicatorThumb = document.querySelector('[data-touch-indicator-thumb]');
 
 const inputManager = new InputManager(window, {
     touchSurface: renderer.domElement,
     boostButton: touchBoostButton,
+    touchIndicator,
+    touchIndicatorThumb,
 });
 
 let animationFrameId = 0;
 let gameState = 'start';
 let wasBoosting = false;
+let resizeFrameId = 0;
 
 // Touch devices have no keyboard, so the prompts must name the gesture that works.
 const isTouchPrimary = window.matchMedia('(pointer: coarse)').matches;
@@ -273,11 +278,18 @@ function animate() {
     animationFrameId = requestAnimationFrame(animate);
 }
 
-function handleResize() {
+function resizeViewport() {
+    resizeFrameId = 0;
     const width = Math.max(container.clientWidth, 1);
     const height = Math.max(container.clientHeight, 1);
-    resizeCamera(camera, width / height);
+    cameraDynamics.resize(width / height, hovercraft);
     resizeRenderer(renderer, container);
+}
+
+/** Coalesces mobile URL-bar and orientation resize bursts into one frame. */
+function handleResize() {
+    if (resizeFrameId) return;
+    resizeFrameId = requestAnimationFrame(resizeViewport);
 }
 
 function handleVisibilityChange() {
@@ -287,7 +299,10 @@ function handleVisibilityChange() {
 function disposeApp() {
     scoreManager.persistHighScore();
     cancelAnimationFrame(animationFrameId);
+    cancelAnimationFrame(resizeFrameId);
     window.removeEventListener('resize', handleResize);
+    window.removeEventListener('orientationchange', handleResize);
+    window.visualViewport?.removeEventListener('resize', handleResize);
     window.removeEventListener('keydown', handleGameKey);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     stateOverlay.removeEventListener('pointerdown', handleOverlayPointerDown);
@@ -306,9 +321,13 @@ function disposeApp() {
     disposeObject3D(hovercraft);
     void audioEngine.dispose();
     renderer.dispose();
+    renderer.forceContextLoss();
+    renderer.domElement.remove();
 }
 
 window.addEventListener('resize', handleResize);
+window.addEventListener('orientationchange', handleResize);
+window.visualViewport?.addEventListener('resize', handleResize);
 window.addEventListener('keydown', handleGameKey);
 document.addEventListener('visibilitychange', handleVisibilityChange);
 stateOverlay.addEventListener('pointerdown', handleOverlayPointerDown);
@@ -318,4 +337,5 @@ restartButton.addEventListener('click', restartRun);
 window.addEventListener('pagehide', disposeApp, { once: true });
 setGameState('start');
 updateHud();
+resizeViewport();
 animate();

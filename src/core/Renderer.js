@@ -19,5 +19,9 @@ export function createRenderer(container) {
 
 export function resizeRenderer(renderer, container) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_DEVICE_PIXEL_RATIO));
-    renderer.setSize(container.clientWidth, container.clientHeight, false);
+    renderer.setSize(
+        Math.max(container.clientWidth, 1),
+        Math.max(container.clientHeight, 1),
+        false,
+    );
 }

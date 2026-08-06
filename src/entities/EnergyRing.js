@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { markShared } from '../utils/Memory.js';
+import { GroundAnchor } from './GroundAnchor.js';
 
 const sharedGeometries = new Map();
 
@@ -44,10 +45,12 @@ export class EnergyRing extends THREE.Group {
         this.material = new THREE.MeshLambertMaterial({
             color,
             emissive: color,
-            emissiveIntensity: 0.9,
+            emissiveIntensity: 1.05,
         });
+        this.ringVisual = new THREE.Group();
+        this.add(this.ringVisual);
         this.ring = new THREE.Mesh(geometries.ring, this.material);
-        this.add(this.ring);
+        this.ringVisual.add(this.ring);
 
         this.haloMaterial = new THREE.MeshBasicMaterial({
             color,
@@ -57,18 +60,22 @@ export class EnergyRing extends THREE.Group {
             blending: THREE.AdditiveBlending,
         });
         this.halo = new THREE.Mesh(geometries.halo, this.haloMaterial);
-        this.add(this.halo);
+        this.ringVisual.add(this.halo);
+
+        this.groundAnchor = new GroundAnchor({ radius: radius * 0.88, color, opacity: 0.25 });
+        this.add(this.groundAnchor);
     }
 
     update(delta) {
         this.elapsed += delta;
         const pulse = 0.5 + Math.sin(this.elapsed * 3.4) * 0.5;
-        this.rotation.z += this.rotationSpeed * delta;
-        this.rotation.y += this.rotationSpeed * 0.22 * delta;
-        this.material.emissive.setHSL(0.47 + pulse * 0.04, 0.95, 0.42 + pulse * 0.08);
-        this.material.emissiveIntensity = 0.65 + pulse * 0.7;
+        this.ringVisual.rotation.z += this.rotationSpeed * delta;
+        this.ringVisual.rotation.y += this.rotationSpeed * 0.22 * delta;
+        this.material.emissive.setHSL(0.47 + pulse * 0.04, 0.98, 0.44 + pulse * 0.09);
+        this.material.emissiveIntensity = 0.78 + pulse * 0.82;
         this.haloMaterial.opacity = 0.1 + pulse * 0.15;
         this.halo.scale.setScalar(0.98 + pulse * 0.08);
+        this.groundAnchor.update(this.position.y, this.elapsed, 0.9 + pulse * 0.18);
     }
 
     containsPoint(point, pointRadius = 0.7) {

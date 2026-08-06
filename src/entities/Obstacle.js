@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { markShared } from '../utils/Memory.js';
+import { GroundAnchor } from './GroundAnchor.js';
 
 const BODY_WIDTH = 2.6;
 const BODY_HEIGHT = 1.5;
@@ -10,8 +11,8 @@ let sharedResources = null;
 /**
  * Navigation Barriers are inert course scenery. Geometry and materials are built
  * once and reused by every instance, so the continuous spawn/recycle cycle costs
- * no GPU uploads. MeshBasicMaterial is unlit and has no emissive channel, so the
- * warning glow comes from saturated colour plus an additive halo shell.
+ * no repeated GPU uploads. Lambert surfaces keep nearby silhouettes readable while
+ * scene fog provides a stronger distance cue than fully unlit barrier surfaces.
  */
 function getResources() {
     if (sharedResources) return sharedResources;
@@ -24,10 +25,18 @@ function getResources() {
             halo: new THREE.BoxGeometry(BODY_WIDTH * 1.14, BODY_HEIGHT * 1.2, BODY_DEPTH * 2.1),
         },
         materials: {
-            body: new THREE.MeshBasicMaterial({ color: 0x2b1330 }),
-            accent: new THREE.MeshBasicMaterial({ color: 0xff7318 }),
-            alert: new THREE.MeshBasicMaterial({ color: 0xff2d55 }),
-            post: new THREE.MeshBasicMaterial({ color: 0x50324f }),
+            body: new THREE.MeshLambertMaterial({ color: 0x34143b, emissive: 0x15051d }),
+            accent: new THREE.MeshLambertMaterial({
+                color: 0xff7b20,
+                emissive: 0xa52205,
+                emissiveIntensity: 0.72,
+            }),
+            alert: new THREE.MeshLambertMaterial({
+                color: 0xff3567,
+                emissive: 0xa80736,
+                emissiveIntensity: 0.88,
+            }),
+            post: new THREE.MeshLambertMaterial({ color: 0x62405f, emissive: 0x170c1b }),
             halo: new THREE.MeshBasicMaterial({
                 color: 0xff4a2b,
                 transparent: true,
@@ -85,12 +94,16 @@ export class Obstacle extends THREE.Group {
 
         this.halo = new THREE.Mesh(geometries.halo, materials.halo);
         this.add(this.halo);
+
+        this.groundAnchor = new GroundAnchor({ radius: 1.45, color: 0xff6a2b, opacity: 0.22 });
+        this.add(this.groundAnchor);
     }
 
     update(delta) {
         this.elapsed += delta;
         const pulse = 0.5 + Math.sin(this.elapsed * 4.1) * 0.5;
         this.halo.scale.setScalar(0.97 + pulse * 0.07);
+        this.groundAnchor.update(this.position.y, this.elapsed, 0.88 + pulse * 0.16);
     }
 
     /** Refreshes the world-space bounds without traversing geometry each frame. */

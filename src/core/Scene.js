@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 
 const SKY_COLOR = 0x0b0620;
-const FOG_NEAR = 30;
-const FOG_FAR = 118;
+const FOG_DENSITY = 0.0145;
 
 /**
  * Procedural starfield built from a single BufferGeometry point cloud. No texture
@@ -72,13 +71,16 @@ class StarField extends THREE.Points {
 export function createScene() {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(SKY_COLOR);
-    scene.fog = new THREE.Fog(SKY_COLOR, FOG_NEAR, FOG_FAR);
+    // Exponential falloff gives close course objects strong contrast while rings
+    // and barriers merge progressively into the horizon instead of disappearing at
+    // a hard linear-fog boundary.
+    scene.fog = new THREE.FogExp2(SKY_COLOR, FOG_DENSITY);
 
-    const ambientLight = new THREE.AmbientLight(0x9d8cd8, 1.2);
+    const ambientLight = new THREE.AmbientLight(0x9d8cd8, 1.05);
     scene.add(ambientLight);
 
-    const keyLight = new THREE.DirectionalLight(0x8bf7ff, 1.9);
-    keyLight.position.set(8, 14, 10);
+    const keyLight = new THREE.DirectionalLight(0x8bf7ff, 2.05);
+    keyLight.position.set(8, 15, 9);
     scene.add(keyLight);
 
     // Magenta rim light opposite the key light gives the synthwave two-tone look.

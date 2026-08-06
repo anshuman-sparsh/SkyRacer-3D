@@ -1,11 +1,16 @@
 import * as THREE from 'three';
+import { GroundAnchor } from './GroundAnchor.js';
 
-const MAX_ROLL = THREE.MathUtils.degToRad(25);
-const MAX_PITCH = THREE.MathUtils.degToRad(10);
+const MAX_ROLL = THREE.MathUtils.degToRad(30);
+const MAX_PITCH = THREE.MathUtils.degToRad(14);
+const LATERAL_SPEED = 17;
+const VERTICAL_SPEED = 11.5;
+const INPUT_RESPONSE = 17;
+const RELEASE_RESPONSE = 21;
 
 class EngineTrailRibbon extends THREE.Mesh {
     constructor(side) {
-        const geometry = new THREE.PlaneGeometry(0.4, 4.2, 1, 8);
+        const geometry = new THREE.PlaneGeometry(0.42, 4.8, 1, 7);
         geometry.rotateX(Math.PI / 2);
         const material = new THREE.MeshBasicMaterial({
             color: 0x66ffe2,
@@ -19,7 +24,7 @@ class EngineTrailRibbon extends THREE.Mesh {
 
         this.side = side;
         this.basePositions = geometry.getAttribute('position').array.slice();
-        this.position.set(side * 0.72, -0.05, 4.15);
+        this.position.set(side * 0.82, -0.08, 4.72);
         this.name = 'EngineTrailRibbon';
     }
 
@@ -32,8 +37,8 @@ class EngineTrailRibbon extends THREE.Mesh {
                 + Math.sin(elapsed * 11 + baseZ * 2.4 + this.side) * 0.045 * intensity;
         }
         positionAttribute.needsUpdate = true;
-        this.material.opacity = 0.16 + intensity * 0.3;
-        this.scale.z = 0.7 + intensity * 0.75;
+        this.material.opacity = 0.14 + intensity * 0.32;
+        this.scale.z = 0.62 + intensity * 0.88;
     }
 }
 
@@ -48,9 +53,7 @@ export class HoverCraft extends THREE.Group {
         this.spinOutTime = 0;
         this.spinRate = 0;
         this.acceleration = 18;
-        this.friction = 5.5;
         this.drag = 1.8;
-        this.turnSpeed = 18;
         this.maxSpeed = 28;
         this.pitch = 0;
         this.rollAngle = 0;
@@ -71,6 +74,8 @@ export class HoverCraft extends THREE.Group {
 
         this.visual = new THREE.Group();
         this.add(this.visual);
+        this.groundAnchor = new GroundAnchor({ radius: 1.8, color: 0x62ffe6, opacity: 0.24 });
+        this.add(this.groundAnchor);
         this.engineGlows = [];
         this.engineTrails = [];
         this.#buildModel();
@@ -80,44 +85,77 @@ export class HoverCraft extends THREE.Group {
     }
 
     #buildModel() {
-        const hullMaterial = new THREE.MeshLambertMaterial({ color: 0x35d3c2, emissive: 0x063d38 });
-        const trimMaterial = new THREE.MeshLambertMaterial({ color: 0xf0cb58, emissive: 0x382b05 });
-        const engineMaterial = new THREE.MeshLambertMaterial({ color: 0x263746 });
-        const canopyMaterial = new THREE.MeshToonMaterial({ color: 0x69b6df });
-        const glowMaterial = new THREE.MeshBasicMaterial({ color: 0x7fffe8 });
+        const hullMaterial = new THREE.MeshLambertMaterial({
+            color: 0x24bfb7,
+            emissive: 0x063e3b,
+            emissiveIntensity: 0.8,
+        });
+        const trimMaterial = new THREE.MeshLambertMaterial({
+            color: 0xf6c84b,
+            emissive: 0x4a3003,
+            emissiveIntensity: 0.75,
+        });
+        const engineMaterial = new THREE.MeshLambertMaterial({ color: 0x172b3b, emissive: 0x07121d });
+        const canopyMaterial = new THREE.MeshToonMaterial({
+            color: 0x67cfff,
+            emissive: 0x123d66,
+            emissiveIntensity: 1.15,
+        });
+        const glowMaterial = new THREE.MeshBasicMaterial({ color: 0x8cfff0 });
+        const hotCoreMaterial = new THREE.MeshBasicMaterial({ color: 0xfff2a6 });
 
-        const fuselageGeometry = new THREE.ConeGeometry(0.82, 3.8, 6);
+        // A tapered hexagonal fuselage provides a crisp jet silhouette at very low
+        // vertex cost. Forward travel is negative Z, so the cone points that way.
+        const fuselageGeometry = new THREE.ConeGeometry(0.84, 4.85, 6);
         fuselageGeometry.rotateX(-Math.PI / 2);
         const fuselage = new THREE.Mesh(fuselageGeometry, hullMaterial);
-        fuselage.position.z = -0.35;
-        fuselage.scale.set(1, 0.62, 1);
+        fuselage.position.set(0, 0, -0.42);
+        fuselage.scale.set(1, 0.58, 1);
         this.visual.add(fuselage);
 
-        const spineGeometry = new THREE.BoxGeometry(0.68, 0.34, 2.1);
+        const spineGeometry = new THREE.BoxGeometry(0.64, 0.25, 2.45);
         const spine = new THREE.Mesh(spineGeometry, hullMaterial);
-        spine.position.set(0, 0.12, 0.42);
+        spine.position.set(0, 0.1, 0.52);
         this.visual.add(spine);
 
-        const wingGeometry = new THREE.BoxGeometry(2.45, 0.14, 0.86);
+        const wingGeometry = new THREE.BoxGeometry(2.7, 0.12, 0.76);
+        const wingTipGeometry = new THREE.BoxGeometry(1.2, 0.1, 0.42);
         for (const side of [-1, 1]) {
             const wing = new THREE.Mesh(wingGeometry, trimMaterial);
-            wing.position.set(side * 1.25, -0.08, 0.55);
-            wing.rotation.y = side * THREE.MathUtils.degToRad(17);
+            wing.position.set(side * 1.24, -0.08, 0.62);
+            wing.rotation.y = side * THREE.MathUtils.degToRad(24);
             this.visual.add(wing);
+
+            const wingTip = new THREE.Mesh(wingTipGeometry, hullMaterial);
+            wingTip.position.set(side * 2.05, -0.01, 1.22);
+            wingTip.rotation.y = side * THREE.MathUtils.degToRad(31);
+            this.visual.add(wingTip);
         }
 
-        const nacelleGeometry = new THREE.CylinderGeometry(0.3, 0.38, 1.35, 8);
+        const nacelleGeometry = new THREE.CylinderGeometry(0.3, 0.4, 1.7, 8);
         nacelleGeometry.rotateX(Math.PI / 2);
-        const glowGeometry = new THREE.ConeGeometry(0.22, 0.72, 8);
+        const nozzleGeometry = new THREE.CylinderGeometry(0.3, 0.36, 0.38, 8);
+        nozzleGeometry.rotateX(Math.PI / 2);
+        const coreGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.06, 8);
+        coreGeometry.rotateX(Math.PI / 2);
+        const glowGeometry = new THREE.ConeGeometry(0.23, 0.9, 8);
         glowGeometry.rotateX(Math.PI / 2);
 
         for (const side of [-1, 1]) {
             const nacelle = new THREE.Mesh(nacelleGeometry, engineMaterial);
-            nacelle.position.set(side * 0.72, -0.05, 1.18);
+            nacelle.position.set(side * 0.82, -0.08, 1.22);
             this.visual.add(nacelle);
 
+            const nozzle = new THREE.Mesh(nozzleGeometry, trimMaterial);
+            nozzle.position.set(side * 0.82, -0.08, 2.22);
+            this.visual.add(nozzle);
+
+            const core = new THREE.Mesh(coreGeometry, hotCoreMaterial);
+            core.position.set(side * 0.82, -0.08, 2.43);
+            this.visual.add(core);
+
             const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-            glow.position.set(side * 0.72, -0.05, 2.12);
+            glow.position.set(side * 0.82, -0.08, 2.78);
             this.visual.add(glow);
             this.engineGlows.push(glow);
 
@@ -126,11 +164,18 @@ export class HoverCraft extends THREE.Group {
             this.engineTrails.push(trail);
         }
 
-        const canopyGeometry = new THREE.CylinderGeometry(0.3, 0.48, 0.85, 6);
+        const canopyGeometry = new THREE.CylinderGeometry(0.3, 0.5, 1.35, 6);
+        canopyGeometry.rotateX(-Math.PI / 2);
         const canopy = new THREE.Mesh(canopyGeometry, canopyMaterial);
-        canopy.scale.set(1, 0.55, 1.3);
-        canopy.position.set(0, 0.42, -0.25);
+        canopy.scale.set(1, 0.72, 1);
+        canopy.position.set(0, 0.42, -0.72);
         this.visual.add(canopy);
+
+        const tailFinGeometry = new THREE.BoxGeometry(0.12, 0.72, 1.05);
+        const tailFin = new THREE.Mesh(tailFinGeometry, trimMaterial);
+        tailFin.position.set(0, 0.38, 1.25);
+        tailFin.rotation.x = THREE.MathUtils.degToRad(-12);
+        this.visual.add(tailFin);
     }
 
     update(delta, inputState) {
@@ -163,24 +208,29 @@ export class HoverCraft extends THREE.Group {
             this.velocity.z - this.acceleration * boostMultiplier * dt,
             -speedLimit,
         );
-        this.velocity.x += horizontalInput * this.turnSpeed * dt;
-        this.velocity.y += verticalInput * this.turnSpeed * 0.72 * dt;
+        const controlResponse = 1 - Math.exp(-INPUT_RESPONSE * dt);
+        const lateralRelease = 1 - Math.exp(-RELEASE_RESPONSE * dt);
+        this.velocity.x = THREE.MathUtils.lerp(
+            this.velocity.x,
+            horizontalInput * LATERAL_SPEED,
+            horizontalInput === 0 ? lateralRelease : controlResponse,
+        );
+        this.velocity.y = THREE.MathUtils.lerp(
+            this.velocity.y,
+            verticalInput * VERTICAL_SPEED,
+            verticalInput === 0 ? lateralRelease : controlResponse,
+        );
 
-        const lateralDamping = Math.exp(-this.friction * dt);
         const forwardDamping = Math.exp(-this.drag * dt * 0.08);
-        this.velocity.x *= horizontalInput === 0 ? lateralDamping : forwardDamping;
-        this.velocity.y *= verticalInput === 0 ? lateralDamping : forwardDamping;
         this.velocity.z *= forwardDamping;
-        this.velocity.x = THREE.MathUtils.clamp(this.velocity.x, -10, 10);
-        this.velocity.y = THREE.MathUtils.clamp(this.velocity.y, -7, 7);
 
         this.position.addScaledVector(this.velocity, dt);
         this.#applyBounds();
 
-        const rotationResponse = 1 - Math.exp(-8 * dt);
+        const rotationResponse = 1 - Math.exp(-15 * dt);
         this.rollAngle = THREE.MathUtils.lerp(this.rollAngle, -horizontalInput * MAX_ROLL, rotationResponse);
         this.pitch = THREE.MathUtils.lerp(this.pitch, verticalInput * MAX_PITCH, rotationResponse);
-        this.rotation.set(this.pitch, 0, this.rollAngle);
+        this.visual.rotation.set(this.pitch, 0, this.rollAngle);
 
         const glowScale = boostMultiplier > 1 ? 1.45 : 1;
         for (const glow of this.engineGlows) {
@@ -190,6 +240,7 @@ export class HoverCraft extends THREE.Group {
         const trailIntensity = THREE.MathUtils.clamp(-this.velocity.z / this.maxSpeed, 0.2, 1.9)
             * (boostMultiplier > 1 ? 1.55 : 1);
         for (const trail of this.engineTrails) trail.update(this.elapsed, trailIntensity);
+        this.groundAnchor.update(this.position.y, this.elapsed, 0.8 + trailIntensity * 0.18);
     }
 
     /**
@@ -203,13 +254,18 @@ export class HoverCraft extends THREE.Group {
         this.position.y = Math.max(this.position.y - this.spinOutTime * dt * 5.5, this.bounds.minY * 0.6);
 
         this.spinRate *= Math.exp(-0.9 * dt);
-        this.rotation.z += this.spinRate * dt;
-        this.rotation.x = THREE.MathUtils.lerp(this.rotation.x, -0.42, 1 - Math.exp(-3 * dt));
+        this.visual.rotation.z += this.spinRate * dt;
+        this.visual.rotation.x = THREE.MathUtils.lerp(
+            this.visual.rotation.x,
+            -0.42,
+            1 - Math.exp(-3 * dt),
+        );
 
         for (const trail of this.engineTrails) trail.update(this.elapsed, 0.1);
         for (const glow of this.engineGlows) {
             glow.scale.z = THREE.MathUtils.lerp(glow.scale.z, 0.2, 1 - Math.exp(-4 * dt));
         }
+        this.groundAnchor.update(this.position.y, this.elapsed, 0.58);
     }
 
     spinOut() {
@@ -234,6 +290,7 @@ export class HoverCraft extends THREE.Group {
         this.velocity.set(0, 0, 0);
         this.position.set(0, 3, 0);
         this.rotation.set(0, 0, 0);
+        this.visual.rotation.set(0, 0, 0);
         this.isSpinningOut = false;
         this.spinOutTime = 0;
         this.spinRate = 0;
@@ -245,6 +302,7 @@ export class HoverCraft extends THREE.Group {
 
         for (const glow of this.engineGlows) glow.scale.z = 1;
         for (const trail of this.engineTrails) trail.update(0, 0.2);
+        this.groundAnchor.update(this.position.y, 0, 1);
     }
 
     activateEnergyBoost(duration = 2.5, multiplier = 1.5) {

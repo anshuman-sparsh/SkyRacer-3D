@@ -12,8 +12,9 @@ const KEY_ACTIONS = {
     ShiftRight: 'boost',
 };
 
-const JOYSTICK_RADIUS = 54;
-const INPUT_DEAD_ZONE = 0.08;
+const JOYSTICK_RADIUS = 44;
+const TOUCH_SENSITIVITY = 1.25;
+const INPUT_DEAD_ZONE = 0.045;
 
 export class InputManager {
     constructor(eventTarget = window, {
@@ -113,8 +114,14 @@ export class InputManager {
         const constrainedX = deltaX * scale;
         const constrainedY = deltaY * scale;
 
-        this.state.steer = this.#applyDeadZone(constrainedX / JOYSTICK_RADIUS);
-        this.state.pitch = this.#applyDeadZone(-constrainedY / JOYSTICK_RADIUS);
+        // Axes are sampled independently so a diagonal gesture can command full
+        // steering and climb together. The visual thumb remains radially bounded.
+        this.state.steer = this.#applyDeadZone(
+            Math.max(-1, Math.min(1, deltaX / JOYSTICK_RADIUS * TOUCH_SENSITIVITY)),
+        );
+        this.state.pitch = this.#applyDeadZone(
+            Math.max(-1, Math.min(1, -deltaY / JOYSTICK_RADIUS * TOUCH_SENSITIVITY)),
+        );
 
         if (this.touchIndicatorThumb) {
             this.touchIndicatorThumb.style.transform = `translate3d(${constrainedX}px, ${constrainedY}px, 0)`;

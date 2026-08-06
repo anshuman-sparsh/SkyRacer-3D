@@ -1,21 +1,21 @@
 import * as THREE from 'three';
 
 const LANDSCAPE_PROFILE = Object.freeze({
-    baseFov: 60,
-    boostFov: 73,
-    lookAhead: 20,
-    lookHeight: 1.2,
-    followHeight: 3.8,
-    followDistance: 8.5,
+    baseFov: 58,
+    boostFov: 71,
+    lookAhead: 23,
+    lookHeight: 0.75,
+    followHeight: 4.45,
+    followDistance: 9.4,
 });
 
 const PORTRAIT_PROFILE = Object.freeze({
-    baseFov: 78,
-    boostFov: 86,
-    lookAhead: 25,
-    lookHeight: 2.8,
-    followHeight: 5.1,
-    followDistance: 14.5,
+    baseFov: 76,
+    boostFov: 84,
+    lookAhead: 28,
+    lookHeight: 1.7,
+    followHeight: 5.8,
+    followDistance: 15.2,
 });
 
 function sanitizeAspect(aspect) {

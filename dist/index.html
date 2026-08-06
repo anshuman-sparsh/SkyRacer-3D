@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0620" />
+  <title>SkyRacer 3D</title>
+  <style>
+    :root {
+      --neon: #5ef0ff;
+      --magenta: #ff3fa4;
+      --deep: #0b0620;
+      --panel: rgba(22, 11, 46, .58);
+      --edge: rgba(94, 240, 255, .26);
+      font-family: "Segoe UI", system-ui, sans-serif;
+      color: #eef7ff;
+      background: var(--deep);
+    }
+    * { box-sizing: border-box; }
+    html, body, #app { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { background: radial-gradient(120% 90% at 50% 0%, #1b0d3a 0%, var(--deep) 62%); overscroll-behavior: none; }
+    button { font: inherit; }
+    canvas { display: block; touch-action: none; }
+    .hud { position: fixed; inset: max(1.6vh, 10px) max(1.6vw, 10px) auto; z-index: 2; display: grid; grid-template-columns: clamp(120px, 12vw, 164px) minmax(150px, 1fr) clamp(190px, 20vw, 232px); align-items: start; gap: clamp(6px, 1vw, 16px); pointer-events: none; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .glass-panel { border: 1px solid var(--edge); border-radius: 10px; background: var(--panel); box-shadow: inset 0 0 26px rgba(94, 240, 255, .06), 0 8px 26px rgba(0, 0, 0, .32); backdrop-filter: blur(13px) saturate(135%); }
+    .hud__label { color: #a99fd0; font-size: clamp(8px, 1.1vw, 10px); font-weight: 700; line-height: 1; text-transform: uppercase; }
+    .speedometer { position: relative; width: 100%; aspect-ratio: 164 / 132; padding: 6px; }
+    .speedometer__dial { width: 100%; height: 100%; overflow: visible; }
+    .speedometer__track, .speedometer__arc { fill: none; stroke-width: 7; stroke-linecap: round; transform: rotate(135deg); transform-origin: 73px 73px; }
+    .speedometer__track { stroke: rgba(150, 140, 200, .2); stroke-dasharray: 235 314; }
+    .speedometer__arc { stroke: var(--neon); stroke-dasharray: 235 314; stroke-dashoffset: 235; filter: drop-shadow(0 0 6px rgba(94, 240, 255, .85)); transition: stroke-dashoffset 120ms linear; }
+    .speedometer__readout { position: absolute; inset: 42% 0 auto; text-align: center; }
+    .speedometer__value { display: block; color: #fbfdff; font-size: clamp(19px, 2.4vw, 30px); font-weight: 760; line-height: 1; text-shadow: 0 0 15px rgba(94, 240, 255, .45); }
+    .speedometer__unit { color: var(--neon); font-size: clamp(7px, .9vw, 9px); text-transform: uppercase; }
+    .score-panel { justify-self: center; width: 100%; max-width: 260px; padding: clamp(8px, 1.2vh, 13px) clamp(10px, 1.6vw, 24px); text-align: center; }
+    .score-panel__brand { display: block; margin-bottom: 6px; color: var(--magenta); font-size: clamp(7px, .9vw, 9px); font-weight: 700; letter-spacing: .06em; }
+    .score-panel__value { display: block; margin-top: 4px; color: #fff; font-size: clamp(18px, 2.3vw, 28px); font-weight: 760; line-height: 1; text-shadow: 0 0 16px rgba(255, 63, 164, .4); }
+    .score-panel__best { display: inline-flex; align-items: baseline; gap: 6px; margin-top: 7px; padding-top: 7px; border-top: 1px solid rgba(94, 240, 255, .16); color: #a99fd0; font-size: clamp(7px, .9vw, 9px); font-weight: 700; text-transform: uppercase; }
+    .score-panel__best strong { color: var(--neon); font-size: clamp(10px, 1.3vw, 13px); text-shadow: 0 0 12px rgba(94, 240, 255, .5); }
+    .score-panel__best.is-record strong { color: var(--magenta); text-shadow: 0 0 14px rgba(255, 63, 164, .75); }
+    .telemetry { display: grid; gap: clamp(5px, .9vh, 10px); }
+    .boost-panel { padding: clamp(7px, 1.1vh, 12px) clamp(8px, 1vw, 13px); }
+    .boost-panel__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .boost-panel__status { color: var(--magenta); font-size: clamp(7px, .9vw, 9px); }
+    .boost-meter { height: 7px; overflow: hidden; border: 1px solid rgba(255, 63, 164, .24); border-radius: 3px; background: rgba(255, 255, 255, .06); }
+    .boost-meter__fill { width: 0; height: 100%; background: linear-gradient(90deg, var(--neon), var(--magenta)); box-shadow: 0 0 12px var(--magenta); transition: width 90ms linear; }
+    .telemetry__row { display: grid; grid-template-columns: 1fr auto; gap: clamp(5px, .8vw, 10px); }
+    .multiplier { min-width: 68px; padding: clamp(6px, .9vh, 9px) clamp(8px, 1vw, 12px); text-align: center; }
+    .multiplier__value { display: block; margin-top: 3px; color: #9d94c6; font-size: clamp(15px, 1.9vw, 21px); font-weight: 800; line-height: 1; }
+    .multiplier__value.is-active { color: var(--magenta); text-shadow: 0 0 14px rgba(255, 63, 164, .8); }
+    .multiplier__value.is-pulsing { animation: multiplier-pulse 420ms ease-out; }
+    .hud-buttons { display: grid; grid-auto-flow: column; gap: 6px; }
+    .hud-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 0 clamp(8px, 1vw, 13px); border: 1px solid var(--edge); border-radius: 10px; color: #eaf9ff; background: var(--panel); backdrop-filter: blur(13px); cursor: pointer; pointer-events: auto; font-size: clamp(9px, 1.1vw, 12px); }
+    .hud-button::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--neon); box-shadow: 0 0 8px var(--neon); }
+    .hud-button.is-off::before { background: #6b6390; box-shadow: none; }
+    .hud-button:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
+    .speed-lines { position: fixed; inset: 0; z-index: 1; opacity: 0; pointer-events: none; transition: opacity 180ms linear; background:
+      repeating-linear-gradient(90deg, rgba(94,240,255,.5) 0 2px, transparent 2px 42px) left / 16vw 100% no-repeat,
+      repeating-linear-gradient(90deg, rgba(255,63,164,.5) 0 2px, transparent 2px 42px) right / 16vw 100% no-repeat;
+      mask-image: linear-gradient(90deg, #000 0, transparent 22%, transparent 78%, #000 100%); }
+    .speed-lines.is-active { animation: speed-streak 480ms linear infinite; }
+    .touch-controls { position: fixed; inset: auto 0 max(2vh, 14px); z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 0 max(3vw, 16px); pointer-events: none; }
+    .touch-hint { padding: 8px 14px; border: 1px solid var(--edge); border-radius: 999px; background: var(--panel); backdrop-filter: blur(10px); color: #bdb3e0; font: 650 10px/1 ui-monospace, Consolas, monospace; text-transform: uppercase; }
+    .touch-boost { min-width: 96px; min-height: 52px; border: 1px solid rgba(255,63,164,.5); border-radius: 999px; background: rgba(255,63,164,.18); backdrop-filter: blur(10px); color: #fff; font: 750 12px/1 ui-monospace, Consolas, monospace; letter-spacing: .08em; pointer-events: auto; touch-action: none; cursor: pointer; }
+    .touch-boost:focus-visible { outline: 2px solid var(--neon); outline-offset: 3px; }
+    .state-overlay { position: fixed; inset: 0; z-index: 3; display: grid; place-items: center; padding: 5vw; background: rgba(9, 4, 24, .58); backdrop-filter: blur(6px); text-align: center; }
+    .state-overlay[hidden] { display: none; }
+    .state-overlay__content { width: min(560px, 100%); padding: clamp(18px, 4vh, 32px) clamp(14px, 3vw, 26px); border: 1px solid var(--edge); border-radius: 14px; background: var(--panel); box-shadow: 0 18px 60px rgba(0, 0, 0, .45); }
+    .state-overlay__title { margin: 0; color: #f4fbff; font: 750 clamp(17px, 3.4vw, 26px)/1.2 ui-monospace, "Cascadia Mono", Consolas, monospace; text-shadow: 0 0 22px rgba(94, 240, 255, .55); }
+    .state-overlay__title.is-alert { color: #ffe6f2; text-shadow: 0 0 24px rgba(255, 63, 164, .75); }
+    .state-overlay__title.is-pulsing { animation: state-pulse 1.8s ease-in-out infinite; }
+    .state-overlay__message { margin: 10px 0 0; color: var(--neon); font: 650 clamp(9px, 1.4vw, 11px)/1.5 ui-monospace, Consolas, monospace; }
+    .state-overlay__stats { display: flex; justify-content: center; gap: clamp(14px, 4vw, 34px); margin: clamp(14px, 3vh, 22px) 0 0; padding: 0; list-style: none; }
+    .state-overlay__stats[hidden] { display: none; }
+    .state-overlay__stats span { display: block; color: #a99fd0; font: 700 9px/1 ui-monospace, Consolas, monospace; text-transform: uppercase; }
+    .state-overlay__stats strong { display: block; margin-top: 6px; color: #fff; font: 760 clamp(16px, 2.4vw, 22px)/1 ui-monospace, Consolas, monospace; }
+    .state-overlay__action { margin-top: clamp(16px, 3vh, 24px); padding: 12px 30px; border: 1px solid rgba(94,240,255,.55); border-radius: 999px; color: var(--deep); background: linear-gradient(92deg, var(--neon), var(--magenta)); font: 750 12px/1 ui-monospace, Consolas, monospace; letter-spacing: .1em; cursor: pointer; }
+    .state-overlay__best { display: inline-flex; align-items: baseline; gap: 9px; margin: clamp(12px, 2.6vh, 18px) 0 0; padding: 8px 18px; border: 1px solid rgba(94, 240, 255, .22); border-radius: 999px; background: rgba(94, 240, 255, .07); color: #a99fd0; font: 700 9px/1 ui-monospace, Consolas, monospace; text-transform: uppercase; }
+    .state-overlay__best strong { color: var(--neon); font-size: clamp(13px, 1.8vw, 16px); text-shadow: 0 0 13px rgba(94, 240, 255, .55); }
+    .state-overlay__best.is-record { border-color: rgba(255, 63, 164, .5); background: rgba(255, 63, 164, .12); }
+    .state-overlay__best.is-record strong { color: var(--magenta); text-shadow: 0 0 15px rgba(255, 63, 164, .8); }
+    .state-overlay__action[hidden] { display: none; }
+    .state-overlay__action:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+    @keyframes multiplier-pulse { 0% { transform: scale(.86); } 55% { transform: scale(1.18); } 100% { transform: scale(1); } }
+    @keyframes state-pulse { 50% { opacity: .62; } }
+    @keyframes speed-streak { to { background-position-y: 42px, 42px; } }
+    @media (hover: hover) and (pointer: fine) { .touch-controls { display: none; } }
+    @media (max-width: 720px) {
+      .hud { grid-template-columns: clamp(96px, 26vw, 130px) 1fr; }
+      .speedometer__readout { inset: 38% 0 auto; }
+      .telemetry { grid-column: 1 / -1; }
+      .score-panel { max-width: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; } }
+  </style>
+  <script type="module" crossorigin src="./assets/index-DswGhCRB.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/three-DOZNB8P1.js">
+</head>
+<body>
+  <div id="app"></div>
+  <div class="speed-lines" data-speed-lines aria-hidden="true"></div>
+  <div class="hud" aria-live="polite">
+    <section class="speedometer glass-panel" aria-label="Speedometer">
+      <svg class="speedometer__dial" viewBox="0 0 146 112" aria-hidden="true"><circle class="speedometer__track" cx="73" cy="73" r="50" /><circle class="speedometer__arc" data-speed-arc cx="73" cy="73" r="50" /></svg>
+      <div class="speedometer__readout"><strong class="speedometer__value" data-speed>000</strong><span class="speedometer__unit">km/h</span></div>
+    </section>
+    <section class="score-panel glass-panel"><span class="score-panel__brand">SKYRACER // FLIGHT 01</span><span class="hud__label">Score</span><strong class="score-panel__value" data-score>0</strong><span class="score-panel__best" data-best-badge>Best <strong data-best>0</strong></span></section>
+    <div class="telemetry">
+      <section class="boost-panel glass-panel" data-boost role="meter" aria-label="Energy Boost" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="boost-panel__head"><span class="hud__label">Energy Boost</span><span class="boost-panel__status">READY</span></div><div class="boost-meter"><div class="boost-meter__fill" data-boost-fill></div></div></section>
+      <div class="telemetry__row">
+        <section class="multiplier glass-panel"><span class="hud__label">Streak</span><strong class="multiplier__value" data-multiplier>1x</strong></section>
+        <div class="hud-buttons">
+          <button class="hud-button" type="button" data-pause-toggle aria-pressed="false"><span data-pause-label>Pause</span></button>
+          <button class="hud-button" type="button" data-audio-toggle aria-pressed="false"><span data-audio-label>Audio On</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="touch-controls">
+    <span class="touch-hint">Tap left / right to steer</span>
+    <button class="touch-boost" type="button" data-touch-boost>BOOST</button>
+  </div>
+  <div class="state-overlay" data-state-overlay>
+    <div class="state-overlay__content glass-panel">
+      <h1 class="state-overlay__title is-pulsing" data-state-title>PRESS ANY KEY TO START</h1>
+      <p class="state-overlay__message" data-state-message>SKYRACER FLIGHT SYSTEM READY</p>
+      <ul class="state-overlay__stats" data-state-stats hidden>
+        <li><span>Final Score</span><strong data-final-score>0</strong></li>
+        <li><span>Rings</span><strong data-final-rings>0</strong></li>
+      </ul>
+      <p class="state-overlay__best" data-overlay-best>All-Time Best <strong data-overlay-best-value>0</strong></p>
+      <button class="state-overlay__action" type="button" data-restart hidden>RESTART</button>
+    </div>
+  </div>
+</body>
+</html>

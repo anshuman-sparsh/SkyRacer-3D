@@ -1,3 +1,5 @@
-# Local AI Agent Rules
+node_modules/
+dist/
 .clinerules
 .clinerules/
+.DS_Store

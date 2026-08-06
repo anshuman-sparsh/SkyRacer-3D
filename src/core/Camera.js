@@ -135,12 +135,15 @@ export class CameraDynamics {
         this.camera.lookAt(this.lookTarget);
     }
 
-    update(delta, craft, isBoosting) {
+    update(delta, craft, isBoosting, isSurging = false) {
         const dt = Math.min(delta, 0.05);
         const forwardSpeed = Math.max(0, -craft.velocity.z);
         const normalizedSpeed = THREE.MathUtils.clamp(forwardSpeed / craft.maxSpeed, 0, 1.6);
         const acceleration = Math.max(0, (forwardSpeed - this.previousForwardSpeed) / Math.max(dt, 0.001));
-        const pullback = normalizedSpeed * 1.2 + Math.min(acceleration * 0.025, 0.8) + (isBoosting ? 2.1 : 0);
+        const pullback = normalizedSpeed * 1.2
+            + Math.min(acceleration * 0.025, 0.8)
+            + (isBoosting ? 2.1 : 0)
+            + (isSurging ? 1.25 : 0);
 
         const { followHeight, followDistance } = this.viewportProfile;
         this.desiredPosition.set(
@@ -166,9 +169,9 @@ export class CameraDynamics {
         this.lean = THREE.MathUtils.lerp(this.lean, targetLean, 1 - Math.exp(-6 * dt));
         this.camera.rotateZ(this.lean);
 
-        const targetFov = isBoosting
-            ? this.viewportProfile.boostFov
-            : this.viewportProfile.baseFov;
+        const targetFov = isSurging
+            ? this.viewportProfile.boostFov + 5
+            : (isBoosting ? this.viewportProfile.boostFov : this.viewportProfile.baseFov);
         const response = 1 - Math.exp(-5 * dt);
         const nextFov = THREE.MathUtils.lerp(this.camera.fov, targetFov, response);
 

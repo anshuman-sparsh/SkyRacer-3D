@@ -16,6 +16,7 @@ import { disposeObject3D } from './utils/Memory.js';
 
 const TRACK_WIDTH = 32;
 const SPEED_LINE_THRESHOLD = 0.62;
+const SPEEDOMETER_MAX_KMH = 180;
 
 const container = document.querySelector('#app');
 const renderer = createRenderer(container);
@@ -200,8 +201,10 @@ function updateHighScoreDisplays(isRecord = false) {
 }
 
 function updateHud() {
-    const speedKmh = Math.round(scoreManager.speed * 3.6);
-    const speedRatio = THREE.MathUtils.clamp(speedKmh / 180, 0, 1);
+    // Read live craft velocity rather than the score cache so a Surge Ring's
+    // instantaneous impulse is visible on this exact frame.
+    const speedKmh = Math.round(Math.max(0, -hovercraft.velocity.z) * 3.6);
+    const speedRatio = THREE.MathUtils.clamp(speedKmh / SPEEDOMETER_MAX_KMH, 0, 1);
     const boostRatio = hovercraft.boostRatio;
 
     scoreElement.textContent = scoreManager.currentScore.toLocaleString();
@@ -238,34 +241,54 @@ function animate() {
     }
 
     if (gameState === 'running') {
-        const { collectedRings, nearMisses, collided } = trackManager.update(delta, hovercraft);
-        scoreManager.update(delta, hovercraft.velocity);
+        const {
+            collectedRings,
+            collectedEnergyRings,
+            collectedSurgeRings,
+            nearMisses,
+            collided,
+        } = trackManager.update(delta, hovercraft);
 
-        if (collectedRings > 0) {
-            hovercraft.activateEnergyBoost();
-            scoreManager.collectRings(collectedRings);
-            cameraDynamics.addRingImpulse();
-            audioEngine.playRingChime();
-        }
-
-        if (nearMisses > 0) cameraDynamics.addShake(0.28 * nearMisses);
-
-        const isBoosting = inputManager.state.boost || hovercraft.energyBoostTimeRemaining > 0;
-        if (isBoosting && !wasBoosting) {
-            audioEngine.playBoost();
-            cameraDynamics.addShake(0.45);
-        }
-        wasBoosting = isBoosting;
-
-        cameraDynamics.update(delta, hovercraft, isBoosting);
-        speedParticles.update(delta, camera, scoreManager.speed, isBoosting);
-        audioEngine.update(scoreManager.speed, isBoosting);
-        updateHud();
-
+        // Collision is resolved before rewards, score advancement, or another
+        // course-system update can run: one overlap always ends the session.
         if (collided) {
             hovercraft.spinOut();
             cameraDynamics.addShake(1.1);
             setGameState('terminated');
+            cameraDynamics.update(delta, hovercraft, false);
+            audioEngine.update(0, false);
+            updateHud();
+        } else {
+            scoreManager.update(delta, hovercraft.velocity);
+
+            if (collectedRings > 0) {
+                if (collectedEnergyRings > 0) hovercraft.activateEnergyBoost();
+                const earnedSpeedLevels = scoreManager.collectRings(collectedRings);
+                if (earnedSpeedLevels > 0) {
+                    hovercraft.setSpeedProgressionLevel(scoreManager.speedProgressionLevel);
+                }
+                if (collectedSurgeRings > 0) hovercraft.activateSpeedSurge();
+                cameraDynamics.addRingImpulse();
+                audioEngine.playRingChime();
+            }
+
+            if (nearMisses > 0) cameraDynamics.addShake(0.28 * nearMisses);
+
+            const isSurging = hovercraft.isSpeedSurging;
+            const isBoosting = inputManager.state.boost
+                || hovercraft.energyBoostTimeRemaining > 0;
+            const hasSpeedFx = isBoosting || isSurging;
+            if (hasSpeedFx && !wasBoosting) {
+                audioEngine.playBoost();
+                cameraDynamics.addShake(isSurging ? 0.62 : 0.45);
+            }
+            wasBoosting = hasSpeedFx;
+
+            cameraDynamics.update(delta, hovercraft, isBoosting, isSurging);
+            const liveForwardSpeed = Math.max(0, -hovercraft.velocity.z);
+            speedParticles.update(delta, camera, liveForwardSpeed, hasSpeedFx);
+            audioEngine.update(liveForwardSpeed, hasSpeedFx);
+            updateHud();
         }
     } else if (gameState === 'terminated') {
         // Keep the camera and trails animating so the spin-out reads clearly.

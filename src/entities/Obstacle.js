@@ -112,4 +112,9 @@ export class Obstacle extends THREE.Group {
         this.boundingBox.max.copy(this.position).add(this.halfExtents);
         return this.boundingBox;
     }
+
+    /** A single overlap is a terminal Navigation Barrier impact. */
+    intersects(craftBounds) {
+        return craftBounds.intersectsBox(this.refreshBounds());
+    }
 }

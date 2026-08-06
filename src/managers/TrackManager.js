@@ -6,6 +6,7 @@ import { disposeObject3D } from '../utils/Memory.js';
 
 const RING_RADIUS = 1.8;
 const NEAR_MISS_RADIUS = 3.4;
+const SURGE_RING_INTERVAL = 7;
 
 export class TrackManager {
     constructor(scene, {
@@ -32,6 +33,7 @@ export class TrackManager {
         this.energyRings = [];
         this.obstacles = [];
         this.nextSegmentZ = 0;
+        this.spawnedRingCount = 0;
 
         // Strict safe band: inside the guide rails, accounting for ring radius, and
         // never wider than the craft can actually reach. Guarantees every spawn is
@@ -45,6 +47,8 @@ export class TrackManager {
 
     update(delta, hovercraft) {
         let collectedRings = 0;
+        let collectedEnergyRings = 0;
+        let collectedSurgeRings = 0;
         let nearMisses = 0;
         let collided = false;
 
@@ -58,7 +62,14 @@ export class TrackManager {
             const passedBehind = ring.position.z > hovercraft.position.z + this.behindDistance;
             if (!collected && !passedBehind) continue;
 
-            if (collected) collectedRings += 1;
+            if (collected) {
+                collectedRings += 1;
+                if (ring.isSurge) {
+                    collectedSurgeRings += 1;
+                } else {
+                    collectedEnergyRings += 1;
+                }
+            }
             this.energyRings.splice(index, 1);
             this.#removeAndDispose(ring);
         }
@@ -67,8 +78,17 @@ export class TrackManager {
             const obstacle = this.obstacles[index];
             obstacle.update(delta);
 
-            if (!hovercraft.isSpinningOut && craftBox.intersectsBox(obstacle.refreshBounds())) {
+            if (!hovercraft.isSpinningOut && obstacle.intersects(craftBox)) {
+                // Stop on the first intersection. No second impact, near-miss, or
+                // course-spawn work can occur during this terminal frame.
                 collided = true;
+                return {
+                    collectedRings,
+                    collectedEnergyRings,
+                    collectedSurgeRings,
+                    nearMisses,
+                    collided,
+                };
             } else if (!obstacle.wasNearMissed && !hovercraft.isSpinningOut) {
                 // A near-miss is a barrier the craft has just slipped past while
                 // staying close to it, which rewards tight, skilful navigation.
@@ -94,13 +114,20 @@ export class TrackManager {
         }
 
         this.#fillAhead(hovercraft.position.z);
-        return { collectedRings, nearMisses, collided };
+        return {
+            collectedRings,
+            collectedEnergyRings,
+            collectedSurgeRings,
+            nearMisses,
+            collided,
+        };
     }
 
     /** Clears the course and rebuilds it from the origin for an in-place restart. */
     reset() {
         this.destroy();
         this.nextSegmentZ = 0;
+        this.spawnedRingCount = 0;
         this.#fillAhead(0);
     }
 
@@ -140,7 +167,9 @@ export class TrackManager {
     }
 
     #spawnRing(z) {
-        const ring = new EnergyRing({ radius: RING_RADIUS });
+        this.spawnedRingCount += 1;
+        const isSurge = this.spawnedRingCount % SURGE_RING_INTERVAL === 0;
+        const ring = new EnergyRing({ radius: RING_RADIUS, isSurge });
         const { minY, maxY } = this.craftBounds;
         ring.position.set(
             (this.random() * 2 - 1) * this.ringHalfWidth,

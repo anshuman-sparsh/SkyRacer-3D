@@ -7,6 +7,13 @@ const LATERAL_SPEED = 17;
 const VERTICAL_SPEED = 11.5;
 const INPUT_RESPONSE = 17;
 const RELEASE_RESPONSE = 21;
+const KMH_PER_WORLD_UNIT = 3.6;
+const DEFAULT_BASE_SPEED = 28;
+const ENERGY_BOOST_DURATION = 4.5;
+const SURGE_SPEED = 165 / KMH_PER_WORLD_UNIT;
+const SURGE_DURATION = 1.6;
+const OVERSPEED_DECAY_RESPONSE = 1.65;
+const TIMER_EPSILON = 1e-6;
 
 class EngineTrailRibbon extends THREE.Mesh {
     constructor(side) {
@@ -53,13 +60,14 @@ export class HoverCraft extends THREE.Group {
         this.spinOutTime = 0;
         this.spinRate = 0;
         this.acceleration = 18;
-        this.drag = 1.8;
-        this.maxSpeed = 28;
+        this.maxSpeed = DEFAULT_BASE_SPEED;
+        this.speedProgressionLevel = 0;
         this.pitch = 0;
         this.rollAngle = 0;
         this.energyBoostTimeRemaining = 0;
         this.energyBoostMultiplier = 1;
-        this.energyBoostMaxDuration = 2.5;
+        this.energyBoostMaxDuration = ENERGY_BOOST_DURATION;
+        this.speedSurgeTimeRemaining = 0;
         this.elapsed = 0;
 
         // Derived from the real track width so the craft can never fly out past
@@ -197,17 +205,37 @@ export class HoverCraft extends THREE.Group {
             -1,
             1,
         );
-        this.energyBoostTimeRemaining = Math.max(0, this.energyBoostTimeRemaining - dt);
+        this.energyBoostTimeRemaining = this.energyBoostTimeRemaining <= dt + TIMER_EPSILON
+            ? 0
+            : this.energyBoostTimeRemaining - dt;
         if (this.energyBoostTimeRemaining === 0) this.energyBoostMultiplier = 1;
+        this.speedSurgeTimeRemaining = this.speedSurgeTimeRemaining <= dt + TIMER_EPSILON
+            ? 0
+            : this.speedSurgeTimeRemaining - dt;
 
         const inputBoostMultiplier = inputState.boost ? 1.35 : 1;
         const boostMultiplier = Math.max(inputBoostMultiplier, this.energyBoostMultiplier);
-        const speedLimit = this.maxSpeed * boostMultiplier;
+        const cruiseSpeed = this.maxSpeed * boostMultiplier;
+        const currentForwardSpeed = Math.max(0, -this.velocity.z);
+        let nextForwardSpeed = currentForwardSpeed;
 
-        this.velocity.z = Math.max(
-            this.velocity.z - this.acceleration * boostMultiplier * dt,
-            -speedLimit,
-        );
+        if (this.isSpeedSurging) {
+            // Hold the temporary rush at 165 km/h, or above it if a very advanced
+            // session's boosted cruise speed has already exceeded that threshold.
+            nextForwardSpeed = Math.max(SURGE_SPEED, cruiseSpeed);
+        } else if (currentForwardSpeed > cruiseSpeed) {
+            nextForwardSpeed = THREE.MathUtils.lerp(
+                currentForwardSpeed,
+                cruiseSpeed,
+                1 - Math.exp(-OVERSPEED_DECAY_RESPONSE * dt),
+            );
+        } else {
+            nextForwardSpeed = Math.min(
+                currentForwardSpeed + this.acceleration * boostMultiplier * dt,
+                cruiseSpeed,
+            );
+        }
+        this.velocity.z = -nextForwardSpeed;
         const controlResponse = 1 - Math.exp(-INPUT_RESPONSE * dt);
         const lateralRelease = 1 - Math.exp(-RELEASE_RESPONSE * dt);
         this.velocity.x = THREE.MathUtils.lerp(
@@ -220,9 +248,6 @@ export class HoverCraft extends THREE.Group {
             verticalInput * VERTICAL_SPEED,
             verticalInput === 0 ? lateralRelease : controlResponse,
         );
-
-        const forwardDamping = Math.exp(-this.drag * dt * 0.08);
-        this.velocity.z *= forwardDamping;
 
         this.position.addScaledVector(this.velocity, dt);
         this.#applyBounds();
@@ -276,6 +301,8 @@ export class HoverCraft extends THREE.Group {
         this.spinRate = (this.velocity.x >= 0 ? 1 : -1) * 7.5;
         this.energyBoostTimeRemaining = 0;
         this.energyBoostMultiplier = 1;
+        this.energyBoostMaxDuration = ENERGY_BOOST_DURATION;
+        this.speedSurgeTimeRemaining = 0;
     }
 
     /** Refreshes world-space bounds from the cached local extents. */
@@ -299,20 +326,41 @@ export class HoverCraft extends THREE.Group {
         this.elapsed = 0;
         this.energyBoostTimeRemaining = 0;
         this.energyBoostMultiplier = 1;
+        this.energyBoostMaxDuration = ENERGY_BOOST_DURATION;
+        this.speedSurgeTimeRemaining = 0;
+        this.speedProgressionLevel = 0;
+        this.maxSpeed = DEFAULT_BASE_SPEED;
 
         for (const glow of this.engineGlows) glow.scale.z = 1;
         for (const trail of this.engineTrails) trail.update(0, 0.2);
         this.groundAnchor.update(this.position.y, 0, 1);
     }
 
-    activateEnergyBoost(duration = 2.5, multiplier = 1.5) {
+    activateEnergyBoost(duration = ENERGY_BOOST_DURATION, multiplier = 1.5) {
         this.energyBoostTimeRemaining = Math.max(this.energyBoostTimeRemaining, duration);
         this.energyBoostMaxDuration = Math.max(this.energyBoostMaxDuration, duration);
         this.energyBoostMultiplier = Math.max(this.energyBoostMultiplier, multiplier);
     }
 
+    /** Immediately enters a fixed-speed rush before easing back to current cruise. */
+    activateSpeedSurge(duration = SURGE_DURATION) {
+        this.speedSurgeTimeRemaining = Math.max(this.speedSurgeTimeRemaining, duration);
+        this.velocity.z = -Math.max(Math.max(0, -this.velocity.z), SURGE_SPEED);
+    }
+
+    /** Synchronizes permanent session progression from ScoreManager's ring total. */
+    setSpeedProgressionLevel(level) {
+        this.speedProgressionLevel = Math.max(0, Math.floor(level));
+        this.maxSpeed = DEFAULT_BASE_SPEED
+            + this.speedProgressionLevel / KMH_PER_WORLD_UNIT;
+    }
+
     get boostRatio() {
         return THREE.MathUtils.clamp(this.energyBoostTimeRemaining / this.energyBoostMaxDuration, 0, 1);
+    }
+
+    get isSpeedSurging() {
+        return this.speedSurgeTimeRemaining > 0;
     }
 
     #applyBounds() {

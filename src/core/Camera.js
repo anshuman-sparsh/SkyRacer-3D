@@ -152,12 +152,12 @@ export class CameraDynamics {
             craft.position.z + followDistance + pullback,
         );
 
-        const stiffness = 34;
-        const damping = 10.5;
-        this.springAcceleration.copy(this.desiredPosition).sub(this.springPosition).multiplyScalar(stiffness);
-        this.springAcceleration.addScaledVector(this.springVelocity, -damping);
-        this.springVelocity.addScaledVector(this.springAcceleration, dt);
-        this.springPosition.addScaledVector(this.springVelocity, dt);
+        // Exponential smoothing is invariant to frame-rate changes. The previous
+        // semi-implicit spring could overshoot when mobile frames alternated between
+        // 16 ms and 30+ ms, making an otherwise stable craft appear to judder.
+        const followResponse = 1 - Math.exp(-8.5 * dt);
+        this.springPosition.lerp(this.desiredPosition, followResponse);
+        this.springVelocity.set(0, 0, 0);
 
         this.#updateShake(dt);
         this.camera.position.copy(this.springPosition).add(this.impulse).add(this.shakeOffset);
@@ -175,7 +175,7 @@ export class CameraDynamics {
         const response = 1 - Math.exp(-5 * dt);
         const nextFov = THREE.MathUtils.lerp(this.camera.fov, targetFov, response);
 
-        if (Math.abs(nextFov - this.camera.fov) > 0.001) {
+        if (Math.abs(nextFov - this.camera.fov) > 0.02) {
             this.camera.fov = nextFov;
             this.camera.updateProjectionMatrix();
         }

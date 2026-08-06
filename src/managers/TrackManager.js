@@ -31,7 +31,11 @@ export class TrackManager {
         this.random = random;
         this.segments = [];
         this.energyRings = [];
+        this.energyRingPool = [];
+        this.surgeRingPool = [];
+        this.obstaclePool = [];
         this.obstacles = [];
+        this.segmentPool = [];
         this.nextSegmentZ = 0;
         this.spawnedRingCount = 0;
 
@@ -71,7 +75,7 @@ export class TrackManager {
                 }
             }
             this.energyRings.splice(index, 1);
-            this.#removeAndDispose(ring);
+            this.#releaseEnergyRing(ring);
         }
 
         for (let index = this.obstacles.length - 1; index >= 0; index -= 1) {
@@ -102,7 +106,7 @@ export class TrackManager {
             if (obstacle.position.z <= hovercraft.position.z + this.behindDistance) continue;
 
             this.obstacles.splice(index, 1);
-            this.#removeAndDispose(obstacle);
+            this.#releaseObstacle(obstacle);
         }
 
         for (let index = this.segments.length - 1; index >= 0; index -= 1) {
@@ -110,7 +114,7 @@ export class TrackManager {
             if (segment.position.z <= hovercraft.position.z + this.behindDistance) continue;
 
             this.segments.splice(index, 1);
-            this.#removeAndDispose(segment);
+            this.#releaseSegment(segment);
         }
 
         this.#fillAhead(hovercraft.position.z);
@@ -125,19 +129,31 @@ export class TrackManager {
 
     /** Clears the course and rebuilds it from the origin for an in-place restart. */
     reset() {
-        this.destroy();
+        this.energyRings.forEach((ring) => this.#releaseEnergyRing(ring));
+        this.obstacles.forEach((obstacle) => this.#releaseObstacle(obstacle));
+        this.segments.forEach((segment) => this.#releaseSegment(segment));
+        this.energyRings.length = 0;
+        this.obstacles.length = 0;
+        this.segments.length = 0;
         this.nextSegmentZ = 0;
         this.spawnedRingCount = 0;
         this.#fillAhead(0);
     }
 
     destroy() {
-        for (const ring of this.energyRings) this.#removeAndDispose(ring);
-        for (const obstacle of this.obstacles) this.#removeAndDispose(obstacle);
-        for (const segment of this.segments) this.#removeAndDispose(segment);
+        const allRings = [...this.energyRings, ...this.energyRingPool, ...this.surgeRingPool];
+        const allObstacles = [...this.obstacles, ...this.obstaclePool];
+        const allSegments = [...this.segments, ...this.segmentPool];
+        allRings.forEach((ring) => this.#removeAndDispose(ring));
+        allObstacles.forEach((obstacle) => this.#removeAndDispose(obstacle));
+        allSegments.forEach((segment) => this.#removeAndDispose(segment));
         this.energyRings.length = 0;
         this.obstacles.length = 0;
         this.segments.length = 0;
+        this.energyRingPool.length = 0;
+        this.surgeRingPool.length = 0;
+        this.obstaclePool.length = 0;
+        this.segmentPool.length = 0;
     }
 
     #fillAhead(craftZ) {
@@ -149,12 +165,53 @@ export class TrackManager {
         }
     }
 
-    #spawnSegment(z) {
-        const segment = new TrackSegment({
+    #acquireEnergyRing(isSurge) {
+        const pool = isSurge ? this.surgeRingPool : this.energyRingPool;
+        return pool.pop() ?? new EnergyRing({ isSurge });
+    }
+
+    #releaseEnergyRing(ring) {
+        this.scene.remove(ring);
+        ring.visible = false;
+        ring.position.set(0, 0, 0);
+        ring.ringVisual.rotation.set(0, 0, 0);
+        ring.halo.scale.setScalar(1);
+        (ring.isSurge ? this.surgeRingPool : this.energyRingPool).push(ring);
+    }
+
+    #acquireObstacle() {
+        const obstacle = this.obstaclePool.pop() ?? new Obstacle();
+        obstacle.wasNearMissed = false;
+        return obstacle;
+    }
+
+    #acquireSegment() {
+        return this.segmentPool.pop() ?? new TrackSegment({
             length: this.segmentLength,
             width: this.trackWidth,
         });
+    }
+
+    #releaseSegment(segment) {
+        this.scene.remove(segment);
+        segment.visible = false;
+        segment.position.set(0, 0, 0);
+        this.segmentPool.push(segment);
+    }
+
+    #releaseObstacle(obstacle) {
+        this.scene.remove(obstacle);
+        obstacle.visible = false;
+        obstacle.position.set(0, 0, 0);
+        obstacle.halo.scale.setScalar(1);
+        obstacle.wasNearMissed = false;
+        this.obstaclePool.push(obstacle);
+    }
+
+    #spawnSegment(z) {
+        const segment = this.#acquireSegment();
         segment.position.z = z;
+        segment.visible = true;
         this.segments.push(segment);
         this.scene.add(segment);
 
@@ -169,13 +226,14 @@ export class TrackManager {
     #spawnRing(z) {
         this.spawnedRingCount += 1;
         const isSurge = this.spawnedRingCount % SURGE_RING_INTERVAL === 0;
-        const ring = new EnergyRing({ radius: RING_RADIUS, isSurge });
+        const ring = this.#acquireEnergyRing(isSurge);
         const { minY, maxY } = this.craftBounds;
         ring.position.set(
             (this.random() * 2 - 1) * this.ringHalfWidth,
             THREE.MathUtils.clamp(minY + this.random() * (maxY - minY), minY + 0.8, maxY - 0.8),
             z - this.segmentLength * (0.18 + this.random() * 0.24),
         );
+        ring.visible = true;
         this.energyRings.push(ring);
         this.scene.add(ring);
         return ring;
@@ -199,8 +257,9 @@ export class TrackManager {
             if (clearOfRing) break;
         }
 
-        const obstacle = new Obstacle();
+        const obstacle = this.#acquireObstacle();
         obstacle.position.set(x, y, obstacleZ);
+        obstacle.visible = true;
         this.obstacles.push(obstacle);
         this.scene.add(obstacle);
     }

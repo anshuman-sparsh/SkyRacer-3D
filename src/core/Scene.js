@@ -6,8 +6,8 @@ const FOG_DENSITY = 0.0145;
 /**
  * Procedural starfield built from a single BufferGeometry point cloud. No texture
  * is allocated at all, so the GPU cost is just the position buffer: 2600 vertices
- * x 3 floats x 4 bytes is roughly 31KB. Stars wrap around the craft as it travels,
- * so the volume never runs dry.
+ * x 3 floats x 4 bytes is roughly 31KB. The cloud follows the craft, so its static
+ * vertex buffer never needs to cross the CPU/GPU boundary again during a run.
  */
 class StarField extends THREE.Points {
     constructor({ count = 2600, random = Math.random } = {}) {
@@ -24,7 +24,6 @@ class StarField extends THREE.Points {
 
         super(geometry, material);
 
-        this.count = count;
         this.positions = positions;
         this.random = random;
         this.volume = { width: 150, height: 90, depth: 260 };
@@ -33,7 +32,10 @@ class StarField extends THREE.Points {
         this.name = 'StarField';
 
         for (let index = 0; index < count; index += 1) this.#placeStar(index);
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute(
+            'position',
+            new THREE.BufferAttribute(positions, 3).setUsage(THREE.StaticDrawUsage),
+        );
     }
 
     #placeStar(index) {
@@ -44,22 +46,13 @@ class StarField extends THREE.Points {
     }
 
     /**
-     * Recentres on the craft and adds slow parallax drift. Stars that fall behind
-     * the volume are wrapped to the front rather than reallocated.
+     * Recentres on the craft and adds a slow rotational drift. Keeping all local
+     * vertices static avoids uploading the full point buffer on every mobile frame.
      */
     update(delta, craftPosition) {
         this.drift += delta * 0.6;
         this.position.set(craftPosition.x * 0.35, craftPosition.y * 0.2, craftPosition.z);
         this.rotation.z = Math.sin(this.drift * 0.05) * 0.02;
-
-        const positionAttribute = this.geometry.getAttribute('position');
-        const halfDepth = this.volume.depth;
-        for (let index = 0; index < this.count; index += 1) {
-            const offset = index * 3 + 2;
-            this.positions[offset] += delta * 3.2;
-            if (this.positions[offset] > halfDepth) this.positions[offset] -= halfDepth * 2;
-        }
-        positionAttribute.needsUpdate = true;
     }
 
     dispose() {

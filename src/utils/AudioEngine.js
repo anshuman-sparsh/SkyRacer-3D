@@ -1,3 +1,5 @@
+const ENGINE_UPDATE_INTERVAL = 1 / 30;
+
 export class AudioEngine {
     constructor() {
         this.context = null;
@@ -8,6 +10,9 @@ export class AudioEngine {
         this.muted = false;
         this.paused = true;
         this.oneShots = new Set();
+        this.boostNoiseBuffer = null;
+        this.lastEngineUpdateTime = -Infinity;
+        this.lastBoostState = false;
     }
 
     async start() {
@@ -35,6 +40,7 @@ export class AudioEngine {
         this.engineGain.gain.value = 0;
         this.engineOscillator.connect(this.engineFilter).connect(this.engineGain).connect(this.masterGain);
         this.engineOscillator.start();
+        this.boostNoiseBuffer = this.#createBoostNoiseBuffer();
         this.paused = false;
         return true;
     }
@@ -42,9 +48,16 @@ export class AudioEngine {
     update(speed, isBoosting) {
         if (!this.context || !this.engineOscillator || !this.engineGain) return;
         const now = this.context.currentTime;
+        const boostChanged = isBoosting !== this.lastBoostState;
+        if (!boostChanged && now - this.lastEngineUpdateTime < ENGINE_UPDATE_INTERVAL) return;
+
+        this.lastEngineUpdateTime = now;
+        this.lastBoostState = isBoosting;
         const normalizedSpeed = Math.min(Math.max(speed / 42, 0), 1);
+        this.engineOscillator.frequency.cancelScheduledValues(now);
         this.engineOscillator.frequency.setTargetAtTime(45 + normalizedSpeed * 95, now, 0.08);
         const targetGain = this.paused ? 0 : 0.018 + normalizedSpeed * 0.038 + (isBoosting ? 0.014 : 0);
+        this.engineGain.gain.cancelScheduledValues(now);
         this.engineGain.gain.setTargetAtTime(targetGain, now, 0.07);
     }
 
@@ -70,17 +83,11 @@ export class AudioEngine {
         if (!this.context || this.muted) return;
         const duration = 0.55;
         const now = this.context.currentTime;
-        const buffer = this.context.createBuffer(1, this.context.sampleRate * duration, this.context.sampleRate);
-        const samples = buffer.getChannelData(0);
-        for (let index = 0; index < samples.length; index += 1) {
-            const envelope = 1 - index / samples.length;
-            samples[index] = (Math.random() * 2 - 1) * envelope;
-        }
 
         const source = this.context.createBufferSource();
         const filter = this.context.createBiquadFilter();
         const gain = this.context.createGain();
-        source.buffer = buffer;
+        source.buffer = this.boostNoiseBuffer;
         filter.type = 'bandpass';
         filter.Q.value = 1.8;
         filter.frequency.setValueAtTime(220, now);
@@ -123,6 +130,8 @@ export class AudioEngine {
         if (this.masterGain) this.masterGain.disconnect();
         if (this.context && this.context.state !== 'closed') await this.context.close();
         this.context = null;
+        this.boostNoiseBuffer = null;
+        this.lastEngineUpdateTime = -Infinity;
     }
 
     #trackOneShot(source, connectedNodes) {
@@ -132,5 +141,20 @@ export class AudioEngine {
             connectedNodes.forEach((node) => node.disconnect());
             this.oneShots.delete(source);
         };
+    }
+
+    #createBoostNoiseBuffer() {
+        const duration = 0.55;
+        const buffer = this.context.createBuffer(
+            1,
+            Math.ceil(this.context.sampleRate * duration),
+            this.context.sampleRate,
+        );
+        const samples = buffer.getChannelData(0);
+        for (let index = 0; index < samples.length; index += 1) {
+            const envelope = 1 - index / samples.length;
+            samples[index] = (Math.random() * 2 - 1) * envelope;
+        }
+        return buffer;
     }
 }

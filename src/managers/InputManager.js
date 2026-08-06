@@ -15,6 +15,8 @@ const KEY_ACTIONS = {
 const JOYSTICK_RADIUS = 44;
 const TOUCH_SENSITIVITY = 1.25;
 const INPUT_DEAD_ZONE = 0.045;
+const TOUCH_INPUT_RESPONSE = 24;
+const TOUCH_RELEASE_RESPONSE = 30;
 
 export class InputManager {
     constructor(eventTarget = window, {
@@ -41,6 +43,11 @@ export class InputManager {
         this.controlPointerId = null;
         this.boostPointerId = null;
         this.touchOrigin = { x: 0, y: 0 };
+        this.targetSteer = 0;
+        this.targetPitch = 0;
+        this.thumbX = 0;
+        this.thumbY = 0;
+        this.isThumbDirty = false;
 
         this.handleKeyDown = (event) => this.#setKeyState(event, true);
         this.handleKeyUp = (event) => this.#setKeyState(event, false);
@@ -94,15 +101,19 @@ export class InputManager {
     #onPointerMove(event) {
         if (event.pointerId !== this.controlPointerId) return;
         event.preventDefault();
-        this.#updateTouchAxes(event);
+        const coalescedEvents = event.getCoalescedEvents?.();
+        this.#updateTouchAxes(coalescedEvents?.at(-1) ?? event);
     }
 
     #onPointerEnd(event) {
         if (event.pointerId !== this.controlPointerId) return;
 
         this.controlPointerId = null;
-        this.state.steer = 0;
-        this.state.pitch = 0;
+        this.targetSteer = 0;
+        this.targetPitch = 0;
+        this.thumbX = 0;
+        this.thumbY = 0;
+        this.isThumbDirty = true;
         this.#hideTouchIndicator();
     }
 
@@ -116,16 +127,15 @@ export class InputManager {
 
         // Axes are sampled independently so a diagonal gesture can command full
         // steering and climb together. The visual thumb remains radially bounded.
-        this.state.steer = this.#applyDeadZone(
+        this.targetSteer = this.#applyDeadZone(
             Math.max(-1, Math.min(1, deltaX / JOYSTICK_RADIUS * TOUCH_SENSITIVITY)),
         );
-        this.state.pitch = this.#applyDeadZone(
+        this.targetPitch = this.#applyDeadZone(
             Math.max(-1, Math.min(1, -deltaY / JOYSTICK_RADIUS * TOUCH_SENSITIVITY)),
         );
-
-        if (this.touchIndicatorThumb) {
-            this.touchIndicatorThumb.style.transform = `translate3d(${constrainedX}px, ${constrainedY}px, 0)`;
-        }
+        this.thumbX = constrainedX;
+        this.thumbY = constrainedY;
+        this.isThumbDirty = true;
     }
 
     #applyDeadZone(value) {
@@ -141,7 +151,25 @@ export class InputManager {
 
     #hideTouchIndicator() {
         this.touchIndicator?.classList.remove('is-active');
-        if (this.touchIndicatorThumb) this.touchIndicatorThumb.style.transform = 'translate3d(0, 0, 0)';
+    }
+
+    /** Samples gesture targets once per rendered frame instead of exposing the
+     * irregular cadence of browser pointer events directly to craft physics. */
+    update(delta) {
+        const dt = Math.min(Math.max(delta, 0), 0.05);
+        const hasTouchTarget = this.controlPointerId !== null;
+        const response = hasTouchTarget ? TOUCH_INPUT_RESPONSE : TOUCH_RELEASE_RESPONSE;
+        const blend = 1 - Math.exp(-response * dt);
+        this.state.steer += (this.targetSteer - this.state.steer) * blend;
+        this.state.pitch += (this.targetPitch - this.state.pitch) * blend;
+
+        if (Math.abs(this.state.steer) < 0.001 && this.targetSteer === 0) this.state.steer = 0;
+        if (Math.abs(this.state.pitch) < 0.001 && this.targetPitch === 0) this.state.pitch = 0;
+
+        if (this.isThumbDirty && this.touchIndicatorThumb) {
+            this.touchIndicatorThumb.style.transform = `translate3d(${this.thumbX}px, ${this.thumbY}px, 0)`;
+            this.isThumbDirty = false;
+        }
     }
 
     #onBoostPress(event) {
@@ -177,6 +205,11 @@ export class InputManager {
         this.state.boost = false;
         this.state.steer = 0;
         this.state.pitch = 0;
+        this.targetSteer = 0;
+        this.targetPitch = 0;
+        this.thumbX = 0;
+        this.thumbY = 0;
+        this.isThumbDirty = true;
         this.controlPointerId = null;
         this.boostPointerId = null;
         this.#hideTouchIndicator();

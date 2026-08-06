@@ -27,7 +27,10 @@ export class SpeedParticles extends THREE.Points {
             this.#resetParticle(index, true);
         }
 
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute(
+            'position',
+            new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage),
+        );
     }
 
     update(delta, camera, forwardSpeed, isBoosting) {

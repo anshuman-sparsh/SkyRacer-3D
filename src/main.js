@@ -17,6 +17,7 @@ import { disposeObject3D } from './utils/Memory.js';
 const TRACK_WIDTH = 32;
 const SPEED_LINE_THRESHOLD = 0.62;
 const SPEEDOMETER_MAX_KMH = 180;
+const HUD_UPDATE_INTERVAL = 1 / 20;
 
 const container = document.querySelector('#app');
 const renderer = createRenderer(container);
@@ -72,6 +73,16 @@ let animationFrameId = 0;
 let gameState = 'start';
 let wasBoosting = false;
 let resizeFrameId = 0;
+let hudElapsed = HUD_UPDATE_INTERVAL;
+let lastScoreText = '';
+let lastSpeedText = '';
+let lastSpeedOffset = '';
+let lastBoostWidth = '';
+let lastBoostValue = '';
+let lastSpeedLineOpacity = '';
+let lastSpeedLineActive = false;
+let lastBestText = '';
+let lastBestRecord = false;
 
 // Touch devices have no keyboard, so the prompts must name the gesture that works.
 const isTouchPrimary = window.matchMedia('(pointer: coarse)').matches;
@@ -194,10 +205,16 @@ async function handleAudioToggle() {
 /** Mirrors the persisted best into the HUD badge and the overlay pill. */
 function updateHighScoreDisplays(isRecord = false) {
     const best = scoreManager.getHighScore().toLocaleString();
-    bestElement.textContent = best;
-    overlayBestValueElement.textContent = best;
-    bestBadgeElement.classList.toggle('is-record', isRecord);
-    overlayBestElement.classList.toggle('is-record', isRecord);
+    if (best !== lastBestText) {
+        bestElement.textContent = best;
+        overlayBestValueElement.textContent = best;
+        lastBestText = best;
+    }
+    if (isRecord !== lastBestRecord) {
+        bestBadgeElement.classList.toggle('is-record', isRecord);
+        overlayBestElement.classList.toggle('is-record', isRecord);
+        lastBestRecord = isRecord;
+    }
 }
 
 function updateHud() {
@@ -207,18 +224,46 @@ function updateHud() {
     const speedRatio = THREE.MathUtils.clamp(speedKmh / SPEEDOMETER_MAX_KMH, 0, 1);
     const boostRatio = hovercraft.boostRatio;
 
-    scoreElement.textContent = scoreManager.currentScore.toLocaleString();
-    speedElement.textContent = speedKmh.toString().padStart(3, '0');
-    speedArcElement.style.strokeDashoffset = (235 * (1 - speedRatio)).toFixed(2);
-    boostFillElement.style.width = `${(boostRatio * 100).toFixed(1)}%`;
-    boostElement.setAttribute('aria-valuenow', Math.round(boostRatio * 100).toString());
+    const scoreText = scoreManager.currentScore.toLocaleString();
+    const speedText = speedKmh.toString().padStart(3, '0');
+    const speedOffset = (235 * (1 - speedRatio)).toFixed(2);
+    const boostWidth = `${(boostRatio * 100).toFixed(1)}%`;
+    const boostValue = Math.round(boostRatio * 100).toString();
+
+    if (scoreText !== lastScoreText) {
+        scoreElement.textContent = scoreText;
+        lastScoreText = scoreText;
+    }
+    if (speedText !== lastSpeedText) {
+        speedElement.textContent = speedText;
+        lastSpeedText = speedText;
+    }
+    if (speedOffset !== lastSpeedOffset) {
+        speedArcElement.style.strokeDashoffset = speedOffset;
+        lastSpeedOffset = speedOffset;
+    }
+    if (boostWidth !== lastBoostWidth) {
+        boostFillElement.style.width = boostWidth;
+        lastBoostWidth = boostWidth;
+    }
+    if (boostValue !== lastBoostValue) {
+        boostElement.setAttribute('aria-valuenow', boostValue);
+        lastBoostValue = boostValue;
+    }
 
     // Edge distortion lines are pure CSS, so high-speed feedback costs no VRAM.
     const isFast = speedRatio > SPEED_LINE_THRESHOLD;
-    speedLinesElement.style.opacity = isFast
+    const speedLineOpacity = isFast
         ? ((speedRatio - SPEED_LINE_THRESHOLD) / (1 - SPEED_LINE_THRESHOLD) * 0.75).toFixed(2)
         : '0';
-    speedLinesElement.classList.toggle('is-active', isFast);
+    if (speedLineOpacity !== lastSpeedLineOpacity) {
+        speedLinesElement.style.opacity = speedLineOpacity;
+        lastSpeedLineOpacity = speedLineOpacity;
+    }
+    if (isFast !== lastSpeedLineActive) {
+        speedLinesElement.classList.toggle('is-active', isFast);
+        lastSpeedLineActive = isFast;
+    }
 
     const multiplier = scoreManager.currentMultiplier;
     if (multiplierElement.textContent !== `${multiplier}x`) {
@@ -234,6 +279,7 @@ function updateHud() {
 
 function animate() {
     const delta = Math.min(clock.getDelta(), 0.05);
+    inputManager.update(delta);
 
     if (gameState === 'running' || gameState === 'terminated') {
         hovercraft.update(delta, inputManager.state);
@@ -257,6 +303,7 @@ function animate() {
             setGameState('terminated');
             cameraDynamics.update(delta, hovercraft, false);
             audioEngine.update(0, false);
+            hudElapsed = HUD_UPDATE_INTERVAL;
             updateHud();
         } else {
             scoreManager.update(delta, hovercraft.velocity);
@@ -288,7 +335,11 @@ function animate() {
             const liveForwardSpeed = Math.max(0, -hovercraft.velocity.z);
             speedParticles.update(delta, camera, liveForwardSpeed, hasSpeedFx);
             audioEngine.update(liveForwardSpeed, hasSpeedFx);
-            updateHud();
+            hudElapsed += delta;
+            if (hudElapsed >= HUD_UPDATE_INTERVAL) {
+                hudElapsed %= HUD_UPDATE_INTERVAL;
+                updateHud();
+            }
         }
     } else if (gameState === 'terminated') {
         // Keep the camera and trails animating so the spin-out reads clearly.

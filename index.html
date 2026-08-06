@@ -93,8 +93,13 @@
     @keyframes speed-streak { to { background-position-y: 42px, 42px; } }
     @media (hover: hover) and (pointer: fine) { .touch-controls { display: none; } }
     @media (max-width: 767px) {
+      .glass-panel, .hud-button, .touch-hint, .touch-boost { backdrop-filter: none; }
+      .glass-panel { box-shadow: inset 0 0 18px rgba(94, 240, 255, .04), 0 5px 16px rgba(0, 0, 0, .24); }
+      .speedometer__arc { filter: none; transition-duration: 60ms; }
+      .boost-meter__fill { transition-duration: 60ms; }
+      .speed-lines { display: none; }
       .hud { inset: max(env(safe-area-inset-top), 5px) max(env(safe-area-inset-right), 6px) auto max(env(safe-area-inset-left), 6px); grid-template-columns: minmax(68px, .72fr) minmax(82px, 1fr) minmax(112px, 1.18fr); gap: clamp(3px, 1.2vw, 7px); max-height: 13vh; max-height: 13dvh; }
-      .glass-panel { border-radius: clamp(5px, 1.6vw, 8px); backdrop-filter: blur(8px) saturate(125%); }
+      .glass-panel { border-radius: clamp(5px, 1.6vw, 8px); }
       .hud__label { font-size: clamp(.42rem, 1.7vw, .54rem); }
       .speedometer { height: min(12vh, 76px); height: min(12dvh, 76px); padding: 2px; aspect-ratio: auto; }
       .speedometer__dial { display: block; }

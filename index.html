@@ -37,7 +37,8 @@
     .score-panel { justify-self: center; width: 100%; max-width: 260px; padding: clamp(8px, 1.2vh, 13px) clamp(10px, 1.6vw, 24px); text-align: center; }
     .score-panel__brand { display: block; margin-bottom: 6px; color: var(--magenta); font-size: clamp(7px, .9vw, 9px); font-weight: 700; letter-spacing: .06em; }
     .score-panel__value { display: block; margin-top: 4px; color: #fff; font-size: clamp(18px, 2.3vw, 28px); font-weight: 760; line-height: 1; text-shadow: 0 0 16px rgba(255, 63, 164, .4); }
-    .score-panel__best { display: inline-flex; align-items: baseline; gap: 6px; margin-top: 7px; padding-top: 7px; border-top: 1px solid rgba(94, 240, 255, .16); color: #a99fd0; font-size: clamp(7px, .9vw, 9px); font-weight: 700; text-transform: uppercase; }
+    .score-panel__stats { display: flex; align-items: baseline; justify-content: center; margin-top: 7px; padding-top: 7px; border-top: 1px solid rgba(94, 240, 255, .16); }
+    .score-panel__best { display: inline-flex; align-items: baseline; gap: 6px; color: #a99fd0; font-size: clamp(7px, .9vw, 9px); font-weight: 700; text-transform: uppercase; }
     .score-panel__best strong { color: var(--neon); font-size: clamp(10px, 1.3vw, 13px); text-shadow: 0 0 12px rgba(94, 240, 255, .5); }
     .score-panel__best.is-record strong { color: var(--magenta); text-shadow: 0 0 14px rgba(255, 63, 164, .75); }
     .telemetry { display: grid; gap: clamp(5px, .9vh, 10px); }
@@ -47,10 +48,8 @@
     .boost-meter { height: 7px; overflow: hidden; border: 1px solid rgba(255, 63, 164, .24); border-radius: 3px; background: rgba(255, 255, 255, .06); }
     .boost-meter__fill { width: 0; height: 100%; background: linear-gradient(90deg, var(--neon), var(--magenta)); box-shadow: 0 0 12px var(--magenta); transition: width 90ms linear; }
     .telemetry__row { display: grid; grid-template-columns: 1fr auto; gap: clamp(5px, .8vw, 10px); }
-    .multiplier { min-width: 68px; padding: clamp(6px, .9vh, 9px) clamp(8px, 1vw, 12px); text-align: center; }
-    .multiplier__value { display: block; margin-top: 3px; color: #9d94c6; font-size: clamp(15px, 1.9vw, 21px); font-weight: 800; line-height: 1; }
-    .multiplier__value.is-active { color: var(--magenta); text-shadow: 0 0 14px rgba(255, 63, 164, .8); }
-    .multiplier__value.is-pulsing { animation: multiplier-pulse 420ms ease-out; }
+    .rings-panel { min-width: 68px; padding: clamp(6px, .9vh, 9px) clamp(8px, 1vw, 12px); text-align: center; }
+    .rings-panel__value { display: block; margin-top: 3px; color: var(--magenta); font-size: clamp(15px, 1.9vw, 21px); font-weight: 800; line-height: 1; text-shadow: 0 0 14px rgba(255, 63, 164, .55); }
     .hud-buttons { display: grid; grid-auto-flow: column; gap: 6px; }
     .hud-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 0 clamp(8px, 1vw, 13px); border: 1px solid var(--edge); border-radius: 10px; color: #eaf9ff; background: var(--panel); backdrop-filter: blur(13px); cursor: pointer; pointer-events: auto; font-size: clamp(9px, 1.1vw, 12px); }
     .hud-button::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--neon); box-shadow: 0 0 8px var(--neon); }
@@ -89,7 +88,6 @@
     .state-overlay__best.is-record strong { color: var(--magenta); text-shadow: 0 0 15px rgba(255, 63, 164, .8); }
     .state-overlay__action[hidden] { display: none; }
     .state-overlay__action:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-    @keyframes multiplier-pulse { 0% { transform: scale(.86); } 55% { transform: scale(1.18); } 100% { transform: scale(1); } }
     @keyframes state-pulse { 50% { opacity: .62; } }
     @keyframes speed-streak { to { background-position-y: 42px, 42px; } }
     @media (hover: hover) and (pointer: fine) { .touch-controls { display: none; } }
@@ -111,7 +109,8 @@
       .score-panel { align-self: start; max-width: none; min-height: 0; height: min(12vh, 76px); height: min(12dvh, 76px); padding: clamp(3px, .8vh, 7px) clamp(3px, 1.5vw, 8px); overflow: hidden; }
       .score-panel__brand { display: none; }
       .score-panel__value { margin-top: 2px; font-size: clamp(.82rem, 4.1vw, 1.2rem); }
-      .score-panel__best { gap: 3px; margin-top: clamp(2px, .6vh, 5px); padding-top: clamp(2px, .5vh, 4px); font-size: clamp(.38rem, 1.5vw, .48rem); }
+      .score-panel__stats { margin-top: clamp(2px, .6vh, 5px); padding-top: clamp(2px, .5vh, 4px); }
+      .score-panel__best { gap: 3px; font-size: clamp(.38rem, 1.5vw, .48rem); }
       .score-panel__best strong { font-size: clamp(.5rem, 2vw, .65rem); }
       .telemetry { gap: clamp(2px, .5vh, 4px); }
       .boost-panel { min-height: 0; padding: clamp(3px, .7vh, 6px) clamp(4px, 1.2vw, 7px); }
@@ -119,8 +118,8 @@
       .boost-panel__status { font-size: clamp(.38rem, 1.5vw, .48rem); }
       .boost-meter { height: clamp(3px, .8vh, 5px); }
       .telemetry__row { gap: clamp(2px, .7vw, 4px); }
-      .multiplier { min-width: 0; padding: clamp(2px, .5vh, 4px); }
-      .multiplier__value { margin-top: 1px; font-size: clamp(.7rem, 3vw, .9rem); }
+      .rings-panel { min-width: 0; padding: clamp(2px, .5vh, 4px); }
+      .rings-panel__value { margin-top: 1px; font-size: clamp(.7rem, 3vw, .9rem); }
       .hud-buttons { gap: clamp(2px, .7vw, 4px); }
       .hud-button { min-height: clamp(22px, 5.2vh, 30px); padding: 0 clamp(3px, 1vw, 6px); border-radius: 6px; gap: 3px; font-size: clamp(.42rem, 1.65vw, .55rem); }
       .hud-button::before { width: 4px; height: 4px; }
@@ -139,11 +138,11 @@
       <svg class="speedometer__dial" viewBox="0 0 146 112" aria-hidden="true"><circle class="speedometer__track" cx="73" cy="73" r="50" /><circle class="speedometer__arc" data-speed-arc cx="73" cy="73" r="50" /></svg>
       <div class="speedometer__readout"><strong class="speedometer__value" data-speed>000</strong><span class="speedometer__unit">km/h</span></div>
     </section>
-    <section class="score-panel glass-panel"><span class="score-panel__brand">SKYRACER // FLIGHT 01</span><span class="hud__label">Score</span><strong class="score-panel__value" data-score>0</strong><span class="score-panel__best" data-best-badge>Best <strong data-best>0</strong></span></section>
+    <section class="score-panel glass-panel"><span class="score-panel__brand">SKYRACER // FLIGHT 01</span><span class="hud__label">Score</span><strong class="score-panel__value" data-score>0</strong><div class="score-panel__stats"><span class="score-panel__best" data-best-badge>Best <strong data-best>0</strong></span></div></section>
     <div class="telemetry">
       <section class="boost-panel glass-panel" data-boost role="meter" aria-label="Energy Boost" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="boost-panel__head"><span class="hud__label">Energy Boost</span><span class="boost-panel__status">READY</span></div><div class="boost-meter"><div class="boost-meter__fill" data-boost-fill></div></div></section>
       <div class="telemetry__row">
-        <section class="multiplier glass-panel"><span class="hud__label">Streak</span><strong class="multiplier__value" data-multiplier>1x</strong></section>
+        <section class="rings-panel glass-panel"><span class="hud__label">Rings</span><strong class="rings-panel__value" data-rings>0</strong></section>
         <div class="hud-buttons">
           <button class="hud-button" type="button" data-pause-toggle aria-pressed="false"><span data-pause-label>Pause</span></button>
           <button class="hud-button" type="button" data-audio-toggle aria-pressed="false"><span data-audio-label>Audio On</span></button>

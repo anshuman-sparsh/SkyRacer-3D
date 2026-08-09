@@ -18,16 +18,12 @@ function readStoredHighScore() {
 }
 
 export class ScoreManager {
-    constructor({ ringBonus = 500, streakWindow = 6, maxMultiplier = 4 } = {}) {
+    constructor({ ringBonus = 500 } = {}) {
         this.distance = 0;
         this.currentVelocity = 0;
         this.ringsCollected = 0;
-        this.multiplier = 1;
         this.score = 0;
         this.ringBonus = ringBonus;
-        this.streakWindow = streakWindow;
-        this.maxMultiplier = maxMultiplier;
-        this.streakTimeRemaining = 0;
 
         this.highScore = readStoredHighScore();
         this.isStorageAvailable = true;
@@ -39,10 +35,7 @@ export class ScoreManager {
         this.currentVelocity = Math.max(0, -velocity.z);
         const distanceStep = this.currentVelocity * delta;
         this.distance += distanceStep;
-        this.score += distanceStep * 10 * this.multiplier;
-
-        this.streakTimeRemaining = Math.max(0, this.streakTimeRemaining - delta);
-        if (this.streakTimeRemaining === 0) this.multiplier = 1;
+        this.score += distanceStep * 10;
 
         this.#trackHighScore();
 
@@ -92,20 +85,14 @@ export class ScoreManager {
         this.distance = 0;
         this.currentVelocity = 0;
         this.ringsCollected = 0;
-        this.multiplier = 1;
         this.score = 0;
-        this.streakTimeRemaining = 0;
     }
 
     collectRings(count = 1) {
         const previousSpeedLevel = this.speedProgressionLevel;
         for (let index = 0; index < count; index += 1) {
-            this.multiplier = this.streakTimeRemaining > 0
-                ? Math.min(this.multiplier + 1, this.maxMultiplier)
-                : 1;
             this.ringsCollected += 1;
-            this.score += this.ringBonus * this.multiplier;
-            this.streakTimeRemaining = this.streakWindow;
+            this.score += this.ringBonus;
         }
         this.#trackHighScore();
         return this.speedProgressionLevel - previousSpeedLevel;
@@ -117,10 +104,6 @@ export class ScoreManager {
 
     get speed() {
         return Math.round(this.currentVelocity);
-    }
-
-    get currentMultiplier() {
-        return this.multiplier;
     }
 
     /** One permanent cruise-speed level is earned for each ten session rings. */

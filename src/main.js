@@ -41,8 +41,8 @@ scene.add(speedParticles);
 cameraDynamics.snapTo(hovercraft);
 
 const scoreElement = document.querySelector('[data-score]');
+const ringsElement = document.querySelector('[data-rings]');
 const speedElement = document.querySelector('[data-speed]');
-const multiplierElement = document.querySelector('[data-multiplier]');
 const speedArcElement = document.querySelector('[data-speed-arc]');
 const boostElement = document.querySelector('[data-boost]');
 const boostFillElement = document.querySelector('[data-boost-fill]');
@@ -78,6 +78,7 @@ let wasBoosting = false;
 let resizeFrameId = 0;
 let hudElapsed = HUD_UPDATE_INTERVAL;
 let lastScoreText = '';
+let lastRingsText = '';
 let lastSpeedText = '';
 let lastSpeedOffset = '';
 let lastBoostWidth = '';
@@ -228,6 +229,7 @@ function updateHud() {
     const boostRatio = hovercraft.boostRatio;
 
     const scoreText = scoreManager.currentScore.toLocaleString();
+    const ringsText = scoreManager.ringsCollected.toString();
     const speedText = speedKmh.toString().padStart(3, '0');
     const speedOffset = (235 * (1 - speedRatio)).toFixed(2);
     const boostWidth = `${(boostRatio * 100).toFixed(1)}%`;
@@ -236,6 +238,10 @@ function updateHud() {
     if (scoreText !== lastScoreText) {
         scoreElement.textContent = scoreText;
         lastScoreText = scoreText;
+    }
+    if (ringsText !== lastRingsText) {
+        ringsElement.textContent = ringsText;
+        lastRingsText = ringsText;
     }
     if (speedText !== lastSpeedText) {
         speedElement.textContent = speedText;
@@ -268,14 +274,6 @@ function updateHud() {
         lastSpeedLineActive = isFast;
     }
 
-    const multiplier = scoreManager.currentMultiplier;
-    if (multiplierElement.textContent !== `${multiplier}x`) {
-        multiplierElement.textContent = `${multiplier}x`;
-        multiplierElement.classList.remove('is-pulsing');
-        void multiplierElement.offsetWidth;
-        multiplierElement.classList.add('is-pulsing');
-    }
-    multiplierElement.classList.toggle('is-active', multiplier > 1);
     // Highlights live the moment the run passes the stored best.
     updateHighScoreDisplays(scoreManager.isNewHighScore);
 }

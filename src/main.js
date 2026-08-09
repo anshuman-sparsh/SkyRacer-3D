@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { inject } from '@vercel/analytics';
 import { CameraDynamics, createCamera } from './core/Camera.js';
 import { createRenderer, resizeRenderer } from './core/Renderer.js';
 import { createScene } from './core/Scene.js';
@@ -13,6 +14,8 @@ import { ScoreManager } from './managers/ScoreManager.js';
 import { TrackManager } from './managers/TrackManager.js';
 import { AudioEngine } from './utils/AudioEngine.js';
 import { disposeObject3D } from './utils/Memory.js';
+
+inject();
 
 const TRACK_WIDTH = 32;
 const SPEED_LINE_THRESHOLD = 0.62;

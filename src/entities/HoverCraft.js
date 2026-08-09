@@ -9,6 +9,7 @@ const INPUT_RESPONSE = 17;
 const RELEASE_RESPONSE = 21;
 const KMH_PER_WORLD_UNIT = 3.6;
 const DEFAULT_BASE_SPEED = 28;
+const SPEED_INCREASE_KMH_PER_LEVEL = 2;
 const ENERGY_BOOST_DURATION = 4.5;
 const SURGE_SPEED = 165 / KMH_PER_WORLD_UNIT;
 const SURGE_DURATION = 1.6;
@@ -352,7 +353,7 @@ export class HoverCraft extends THREE.Group {
     setSpeedProgressionLevel(level) {
         this.speedProgressionLevel = Math.max(0, Math.floor(level));
         this.maxSpeed = DEFAULT_BASE_SPEED
-            + this.speedProgressionLevel / KMH_PER_WORLD_UNIT;
+            + (this.speedProgressionLevel * SPEED_INCREASE_KMH_PER_LEVEL) / KMH_PER_WORLD_UNIT;
     }
 
     get boostRatio() {

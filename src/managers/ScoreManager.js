@@ -1,6 +1,6 @@
 const HIGH_SCORE_KEY = 'skyracer_highscore';
 const PERSIST_INTERVAL = 2;
-const RINGS_PER_SPEED_LEVEL = 10;
+const RINGS_PER_SPEED_LEVEL = 6;
 
 /**
  * Reads persisted values defensively: localStorage throws in private-browsing
@@ -106,7 +106,7 @@ export class ScoreManager {
         return Math.round(this.currentVelocity);
     }
 
-    /** One permanent cruise-speed level is earned for each ten session rings. */
+    /** One permanent cruise-speed level is earned for each six session rings. */
     get speedProgressionLevel() {
         return Math.floor(this.ringsCollected / RINGS_PER_SPEED_LEVEL);
     }

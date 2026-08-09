@@ -58,6 +58,9 @@ export class GroundAnchor extends THREE.Group {
         outer.renderOrder = 1;
         core.renderOrder = 1;
         this.add(outer, core);
+        // Keep the projection active for scene/game bookkeeping, but do not put
+        // the distracting altitude marker in the player's flight view.
+        this.visible = false;
         this.name = 'GroundAnchor';
     }
 

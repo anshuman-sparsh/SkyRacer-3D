@@ -55,8 +55,12 @@ const finalScoreElement = document.querySelector('[data-final-score]');
 const finalRingsElement = document.querySelector('[data-final-rings]');
 const bestBadgeElement = document.querySelector('[data-best-badge]');
 const bestElement = document.querySelector('[data-best]');
+const bestRingsBadgeElement = document.querySelector('[data-best-rings-badge]');
+const bestRingsElement = document.querySelector('[data-best-rings]');
 const overlayBestElement = document.querySelector('[data-overlay-best]');
 const overlayBestValueElement = document.querySelector('[data-overlay-best-value]');
+const overlayBestRingsElement = document.querySelector('[data-overlay-best-rings]');
+const overlayBestRingsValueElement = document.querySelector('[data-overlay-best-rings-value]');
 const restartButton = document.querySelector('[data-restart]');
 const audioButton = document.querySelector('[data-audio-toggle]');
 const pauseButton = document.querySelector('[data-pause-toggle]');
@@ -87,6 +91,8 @@ let lastSpeedLineOpacity = '';
 let lastSpeedLineActive = false;
 let lastBestText = '';
 let lastBestRecord = false;
+let lastBestRingsText = '';
+let lastBestRingsRecord = false;
 
 // Touch devices have no keyboard, so the prompts must name the gesture that works.
 const isTouchPrimary = window.matchMedia('(pointer: coarse)').matches;
@@ -123,14 +129,17 @@ function setGameState(nextState) {
     pauseButton.disabled = isTerminated;
 
     if (isTerminated) {
-        // Flush immediately so a browser close on the results screen keeps the best.
-        scoreManager.persistHighScore();
+        // Flush immediately so a browser close on the results screen keeps both records.
+        scoreManager.persistRecords();
         finalScoreElement.textContent = scoreManager.currentScore.toLocaleString();
         finalRingsElement.textContent = scoreManager.ringsCollected.toString();
         restartButton.focus();
     }
 
-    updateHighScoreDisplays(isTerminated && scoreManager.isNewHighScore);
+    updateRecordDisplays(
+        isTerminated && scoreManager.isNewHighScore,
+        isTerminated && scoreManager.isNewBestRings,
+    );
 
     const copy = STATE_COPY[nextState];
     if (copy) {
@@ -206,18 +215,30 @@ async function handleAudioToggle() {
     audioButton.querySelector('[data-audio-label]').textContent = isMuted ? 'Audio Off' : 'Audio On';
 }
 
-/** Mirrors the persisted best into the HUD badge and the overlay pill. */
-function updateHighScoreDisplays(isRecord = false) {
+/** Mirrors the all-time score and ring records into the HUD and overlay. */
+function updateRecordDisplays(isScoreRecord = false, isRingsRecord = false) {
     const best = scoreManager.getHighScore().toLocaleString();
     if (best !== lastBestText) {
         bestElement.textContent = best;
         overlayBestValueElement.textContent = best;
         lastBestText = best;
     }
-    if (isRecord !== lastBestRecord) {
-        bestBadgeElement.classList.toggle('is-record', isRecord);
-        overlayBestElement.classList.toggle('is-record', isRecord);
-        lastBestRecord = isRecord;
+    if (isScoreRecord !== lastBestRecord) {
+        bestBadgeElement.classList.toggle('is-record', isScoreRecord);
+        overlayBestElement.classList.toggle('is-record', isScoreRecord);
+        lastBestRecord = isScoreRecord;
+    }
+
+    const bestRings = scoreManager.getBestRings().toLocaleString();
+    if (bestRings !== lastBestRingsText) {
+        bestRingsElement.textContent = bestRings;
+        overlayBestRingsValueElement.textContent = bestRings;
+        lastBestRingsText = bestRings;
+    }
+    if (isRingsRecord !== lastBestRingsRecord) {
+        bestRingsBadgeElement.classList.toggle('is-record', isRingsRecord);
+        overlayBestRingsElement.classList.toggle('is-record', isRingsRecord);
+        lastBestRingsRecord = isRingsRecord;
     }
 }
 
@@ -275,7 +296,7 @@ function updateHud() {
     }
 
     // Highlights live the moment the run passes the stored best.
-    updateHighScoreDisplays(scoreManager.isNewHighScore);
+    updateRecordDisplays(scoreManager.isNewHighScore, scoreManager.isNewBestRings);
 }
 
 function animate() {
@@ -315,7 +336,9 @@ function animate() {
                 if (earnedSpeedLevels > 0) {
                     hovercraft.setSpeedProgressionLevel(scoreManager.speedProgressionLevel);
                 }
-                if (collectedSurgeRings > 0) hovercraft.activateSpeedSurge();
+                if (collectedSurgeRings > 0) {
+                    hovercraft.activateSpeedSurge(collectedSurgeRings);
+                }
                 cameraDynamics.addRingImpulse();
                 audioEngine.playRingChime();
             }
@@ -373,7 +396,7 @@ function handleVisibilityChange() {
 }
 
 function disposeApp() {
-    scoreManager.persistHighScore();
+    scoreManager.persistRecords();
     cancelAnimationFrame(animationFrameId);
     cancelAnimationFrame(resizeFrameId);
     window.removeEventListener('resize', handleResize);

@@ -11,7 +11,9 @@ const KMH_PER_WORLD_UNIT = 3.6;
 const DEFAULT_BASE_SPEED = 28;
 const SPEED_INCREASE_KMH_PER_LEVEL = 2;
 const ENERGY_BOOST_DURATION = 4.5;
-const SURGE_SPEED = 165 / KMH_PER_WORLD_UNIT;
+const SURGE_BASE_SPEED_KMH = 165;
+const SURGE_SPEED_INCREASE_KMH = 5;
+const SURGE_RINGS_PER_LEVEL = 4;
 const SURGE_DURATION = 1.6;
 const OVERSPEED_DECAY_RESPONSE = 1.65;
 const TIMER_EPSILON = 1e-6;
@@ -69,6 +71,8 @@ export class HoverCraft extends THREE.Group {
         this.energyBoostMultiplier = 1;
         this.energyBoostMaxDuration = ENERGY_BOOST_DURATION;
         this.speedSurgeTimeRemaining = 0;
+        this.collectedSurgeRings = 0;
+        this.speedSurgeTarget = SURGE_BASE_SPEED_KMH / KMH_PER_WORLD_UNIT;
         this.elapsed = 0;
 
         // Derived from the real track width so the craft can never fly out past
@@ -221,9 +225,9 @@ export class HoverCraft extends THREE.Group {
         let nextForwardSpeed = currentForwardSpeed;
 
         if (this.isSpeedSurging) {
-            // Hold the temporary rush at 165 km/h, or above it if a very advanced
-            // session's boosted cruise speed has already exceeded that threshold.
-            nextForwardSpeed = Math.max(SURGE_SPEED, cruiseSpeed);
+            // Hold the run's progressive Pink Ring target, or above it if a very
+            // advanced session's boosted cruise speed has exceeded that threshold.
+            nextForwardSpeed = Math.max(this.speedSurgeTarget, cruiseSpeed);
         } else if (currentForwardSpeed > cruiseSpeed) {
             nextForwardSpeed = THREE.MathUtils.lerp(
                 currentForwardSpeed,
@@ -329,6 +333,8 @@ export class HoverCraft extends THREE.Group {
         this.energyBoostMultiplier = 1;
         this.energyBoostMaxDuration = ENERGY_BOOST_DURATION;
         this.speedSurgeTimeRemaining = 0;
+        this.collectedSurgeRings = 0;
+        this.speedSurgeTarget = SURGE_BASE_SPEED_KMH / KMH_PER_WORLD_UNIT;
         this.speedProgressionLevel = 0;
         this.maxSpeed = DEFAULT_BASE_SPEED;
 
@@ -343,10 +349,20 @@ export class HoverCraft extends THREE.Group {
         this.energyBoostMultiplier = Math.max(this.energyBoostMultiplier, multiplier);
     }
 
-    /** Immediately enters a fixed-speed rush before easing back to current cruise. */
-    activateSpeedSurge(duration = SURGE_DURATION) {
+    /**
+     * Enters a temporary Pink Ring rush. Each completed group of four previously
+     * collected Pink Rings raises the next ring's target by 5 km/h for this run.
+     */
+    activateSpeedSurge(collectedRings = 1, duration = SURGE_DURATION) {
+        const ringCount = Math.max(0, Math.floor(collectedRings));
+        if (ringCount === 0) return;
+
+        this.collectedSurgeRings += ringCount;
+        const surgeLevel = Math.floor((this.collectedSurgeRings - 1) / SURGE_RINGS_PER_LEVEL);
+        const targetKmh = SURGE_BASE_SPEED_KMH + surgeLevel * SURGE_SPEED_INCREASE_KMH;
+        this.speedSurgeTarget = targetKmh / KMH_PER_WORLD_UNIT;
         this.speedSurgeTimeRemaining = Math.max(this.speedSurgeTimeRemaining, duration);
-        this.velocity.z = -Math.max(Math.max(0, -this.velocity.z), SURGE_SPEED);
+        this.velocity.z = -Math.max(Math.max(0, -this.velocity.z), this.speedSurgeTarget);
     }
 
     /** Synchronizes permanent session progression from ScoreManager's ring total. */

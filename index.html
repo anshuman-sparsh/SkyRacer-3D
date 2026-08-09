@@ -50,6 +50,9 @@
     .telemetry__row { display: grid; grid-template-columns: 1fr auto; gap: clamp(5px, .8vw, 10px); }
     .rings-panel { min-width: 68px; padding: clamp(6px, .9vh, 9px) clamp(8px, 1vw, 12px); text-align: center; }
     .rings-panel__value { display: block; margin-top: 3px; color: var(--magenta); font-size: clamp(15px, 1.9vw, 21px); font-weight: 800; line-height: 1; text-shadow: 0 0 14px rgba(255, 63, 164, .55); }
+    .rings-panel__best { display: flex; justify-content: center; gap: 4px; margin-top: 4px; color: #a99fd0; font-size: clamp(7px, .8vw, 8px); font-weight: 700; text-transform: uppercase; }
+    .rings-panel__best strong { color: var(--neon); }
+    .rings-panel__best.is-record strong { color: var(--magenta); text-shadow: 0 0 10px rgba(255, 63, 164, .7); }
     .hud-buttons { display: grid; grid-auto-flow: column; gap: 6px; }
     .hud-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 0 clamp(8px, 1vw, 13px); border: 1px solid var(--edge); border-radius: 10px; color: #eaf9ff; background: var(--panel); backdrop-filter: blur(13px); cursor: pointer; pointer-events: auto; font-size: clamp(9px, 1.1vw, 12px); }
     .hud-button::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--neon); box-shadow: 0 0 8px var(--neon); }
@@ -86,6 +89,7 @@
     .state-overlay__best strong { color: var(--neon); font-size: clamp(13px, 1.8vw, 16px); text-shadow: 0 0 13px rgba(94, 240, 255, .55); }
     .state-overlay__best.is-record { border-color: rgba(255, 63, 164, .5); background: rgba(255, 63, 164, .12); }
     .state-overlay__best.is-record strong { color: var(--magenta); text-shadow: 0 0 15px rgba(255, 63, 164, .8); }
+    .state-overlay__records { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
     .state-overlay__action[hidden] { display: none; }
     .state-overlay__action:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
     @keyframes state-pulse { 50% { opacity: .62; } }
@@ -120,6 +124,7 @@
       .telemetry__row { gap: clamp(2px, .7vw, 4px); }
       .rings-panel { min-width: 0; padding: clamp(2px, .5vh, 4px); }
       .rings-panel__value { margin-top: 1px; font-size: clamp(.7rem, 3vw, .9rem); }
+      .rings-panel__best { gap: 2px; margin-top: 1px; font-size: clamp(.34rem, 1.3vw, .42rem); }
       .hud-buttons { gap: clamp(2px, .7vw, 4px); }
       .hud-button { min-height: clamp(22px, 5.2vh, 30px); padding: 0 clamp(3px, 1vw, 6px); border-radius: 6px; gap: 3px; font-size: clamp(.42rem, 1.65vw, .55rem); }
       .hud-button::before { width: 4px; height: 4px; }
@@ -142,7 +147,7 @@
     <div class="telemetry">
       <section class="boost-panel glass-panel" data-boost role="meter" aria-label="Energy Boost" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="boost-panel__head"><span class="hud__label">Energy Boost</span><span class="boost-panel__status">READY</span></div><div class="boost-meter"><div class="boost-meter__fill" data-boost-fill></div></div></section>
       <div class="telemetry__row">
-        <section class="rings-panel glass-panel"><span class="hud__label">Rings</span><strong class="rings-panel__value" data-rings>0</strong></section>
+        <section class="rings-panel glass-panel"><span class="hud__label">Rings</span><strong class="rings-panel__value" data-rings>0</strong><span class="rings-panel__best" data-best-rings-badge>Best <strong data-best-rings>0</strong></span></section>
         <div class="hud-buttons">
           <button class="hud-button" type="button" data-pause-toggle aria-pressed="false"><span data-pause-label>Pause</span></button>
           <button class="hud-button" type="button" data-audio-toggle aria-pressed="false"><span data-audio-label>Audio On</span></button>
@@ -163,7 +168,10 @@
         <li><span>Final Score</span><strong data-final-score>0</strong></li>
         <li><span>Rings</span><strong data-final-rings>0</strong></li>
       </ul>
-      <p class="state-overlay__best" data-overlay-best>All-Time Best <strong data-overlay-best-value>0</strong></p>
+      <div class="state-overlay__records">
+        <p class="state-overlay__best" data-overlay-best>Best Score <strong data-overlay-best-value>0</strong></p>
+        <p class="state-overlay__best" data-overlay-best-rings>Best Rings <strong data-overlay-best-rings-value>0</strong></p>
+      </div>
       <button class="state-overlay__action" type="button" data-restart hidden>RESTART</button>
     </div>
   </div>

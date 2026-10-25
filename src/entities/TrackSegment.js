@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { markShared } from '../utils/Memory.js';
+import { buildSceneryLayout, SCENERY_STATIONS_PER_SIDE } from '../utils/SceneryLayout.js';
 
 const GRID_TEXTURE_SIZE = 256;
 
@@ -79,6 +80,14 @@ function getMaterials() {
         lane: new THREE.MeshBasicMaterial({ color: 0x53e7ff }),
         guide: new THREE.MeshBasicMaterial({ color: 0xff3fa4 }),
         pillar: new THREE.MeshBasicMaterial({ color: 0x4ff0e0 }),
+        // Dark muted silhouettes recede behind the bright gameplay objects.
+        tower: new THREE.MeshLambertMaterial({
+            color: 0x222b48,
+            emissive: 0x081327,
+            emissiveIntensity: 0.3,
+        }),
+        towerCap: new THREE.MeshBasicMaterial({ color: 0x42647b }),
+        roadside: new THREE.MeshBasicMaterial({ color: 0x4aafbd }),
     };
 
     Object.values(sharedMaterials).forEach(markShared);
@@ -95,6 +104,7 @@ function getGeometries(width, length) {
         lane: new THREE.BoxGeometry(0.14, 0.025, length * 0.88),
         rail: new THREE.BoxGeometry(0.28, 0.28, length * 0.92),
         pillar: new THREE.BoxGeometry(0.42, 1.65, 0.42),
+        sceneryUnit: new THREE.BoxGeometry(1, 1, 1),
     };
 
     Object.values(geometries).forEach(markShared);
@@ -159,6 +169,52 @@ export class TrackSegment extends THREE.Group {
                 pillar.position.set(side * (this.width * 0.5 + 0.35), 0.05, z);
                 this.add(pillar);
             }
+        }
+
+        // Three instanced batches per segment, not one draw call per landmark.
+        // All landmarks stay beyond the rails and have no collision volumes.
+        const count = SCENERY_STATIONS_PER_SIDE * 2;
+        this.towers = new THREE.InstancedMesh(geometries.sceneryUnit, materials.tower, count);
+        this.towerCaps = new THREE.InstancedMesh(geometries.sceneryUnit, materials.towerCap, count);
+        this.roadsideMarkers = new THREE.InstancedMesh(geometries.sceneryUnit, materials.roadside, count);
+        this.towers.name = 'DistantSilhouettes';
+        this.towerCaps.name = 'SkylineAccents';
+        this.roadsideMarkers.name = 'RoadsideDepthMarkers';
+        this.add(this.towers, this.towerCaps, this.roadsideMarkers);
+        this.sceneryDummy = new THREE.Object3D();
+        this.setScenerySeed(0);
+    }
+
+    /**
+     * Reposition instanced scenery only when a pooled segment is spawned.
+     * Its rhythmic near markers communicate speed; dark distant structures
+     * supply parallax without adding more particles to the flight corridor.
+     */
+    setScenerySeed(segmentZ) {
+        const placements = buildSceneryLayout(this.width, this.length, segmentZ);
+        const dummy = this.sceneryDummy;
+        for (let i = 0; i < placements.length; i += 1) {
+            const part = placements[i];
+
+            dummy.position.set(part.towerX, part.towerHeight / 2 - 0.25, part.towerZ);
+            dummy.scale.set(part.towerWidth, part.towerHeight, part.towerDepth);
+            dummy.updateMatrix();
+            this.towers.setMatrixAt(i, dummy.matrix);
+
+            dummy.position.set(part.towerX, part.towerHeight - 0.17, part.towerZ);
+            dummy.scale.set(part.towerWidth * 0.92, 0.12, part.towerDepth * 0.95);
+            dummy.updateMatrix();
+            this.towerCaps.setMatrixAt(i, dummy.matrix);
+
+            dummy.position.set(part.markerX, 0.83, part.markerZ);
+            dummy.scale.set(0.13, 1.5, 0.16);
+            dummy.updateMatrix();
+            this.roadsideMarkers.setMatrixAt(i, dummy.matrix);
+        }
+
+        for (const mesh of [this.towers, this.towerCaps, this.roadsideMarkers]) {
+            mesh.instanceMatrix.needsUpdate = true;
+            mesh.computeBoundingSphere();
         }
     }
 }

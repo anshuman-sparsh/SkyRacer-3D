@@ -317,8 +317,25 @@ function animate() {
             collided,
         } = trackManager.update(delta, hovercraft);
 
-        // Collision is resolved before rewards, score advancement, or another
-        // course-system update can run: one overlap always ends the session.
+        // Commit ring rewards even when a barrier impact occurs in the same
+        // frame. Ring removal has already happened inside TrackManager, so
+        // discarding these counts would silently lose a legitimate collection.
+        if (collectedRings > 0) {
+            if (collectedEnergyRings > 0) hovercraft.activateEnergyBoost();
+            const earnedSpeedLevels = scoreManager.collectRings(collectedRings);
+            if (earnedSpeedLevels > 0) {
+                hovercraft.setSpeedProgressionLevel(scoreManager.speedProgressionLevel);
+            }
+            if (collectedSurgeRings > 0) {
+                hovercraft.activateSpeedSurge(collectedSurgeRings);
+            }
+            if (!collided) {
+                cameraDynamics.addRingImpulse();
+                audioEngine.playRingChime();
+            }
+        }
+
+        // A single obstacle overlap still ends the session immediately.
         if (collided) {
             hovercraft.spinOut();
             cameraDynamics.addShake(1.1);
@@ -329,19 +346,6 @@ function animate() {
             updateHud();
         } else {
             scoreManager.update(delta, hovercraft.velocity);
-
-            if (collectedRings > 0) {
-                if (collectedEnergyRings > 0) hovercraft.activateEnergyBoost();
-                const earnedSpeedLevels = scoreManager.collectRings(collectedRings);
-                if (earnedSpeedLevels > 0) {
-                    hovercraft.setSpeedProgressionLevel(scoreManager.speedProgressionLevel);
-                }
-                if (collectedSurgeRings > 0) {
-                    hovercraft.activateSpeedSurge(collectedSurgeRings);
-                }
-                cameraDynamics.addRingImpulse();
-                audioEngine.playRingChime();
-            }
 
             if (nearMisses > 0) cameraDynamics.addShake(0.28 * nearMisses);
 

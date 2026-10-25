@@ -83,6 +83,9 @@ const audioButton = document.querySelector('[data-audio-toggle]');
 const pauseButton = document.querySelector('[data-pause-toggle]');
 const pauseLabel = document.querySelector('[data-pause-label]');
 const touchBoostButton = document.querySelector('[data-touch-boost]');
+const helpButton = document.querySelector('[data-help-open]');
+const helpDialog = document.querySelector('[data-help-dialog]');
+const helpCloseButton = document.querySelector('[data-help-close]');
 const touchIndicator = document.querySelector('[data-touch-indicator]');
 const touchIndicatorThumb = document.querySelector('[data-touch-indicator-thumb]');
 
@@ -198,6 +201,13 @@ function restartRun() {
 }
 
 async function handleGameKey(event) {
+    // Help is a native modal. Opening it with Enter must not start the game,
+    // and keys pressed while reading the guide must not resume gameplay.
+    if (helpDialog.open) return;
+    // Enter/Space should activate a focused Help button, not start a run.
+    // Other gameplay keys must still work after the player closes Help.
+    if (event.target === helpButton
+        && (event.code === 'Enter' || event.code === 'Space')) return;
     if (event.repeat) return;
 
     if (gameState === 'start') {
@@ -225,6 +235,23 @@ function handleOverlayPointerDown(event) {
     } else if (gameState === 'paused') {
         togglePause();
     }
+}
+
+function openHelp() {
+    if (helpDialog.open) return;
+    // Never let the aircraft keep moving behind instructional content.
+    // Closing the guide leaves the run paused until the player resumes.
+    if (gameState === 'running') setGameState('paused');
+    helpDialog.showModal();
+    helpCloseButton.focus();
+}
+
+function closeHelp() {
+    if (helpDialog.open) helpDialog.close();
+}
+
+function restoreHelpFocus() {
+    helpButton.focus({ preventScroll: true });
 }
 
 async function handleAudioToggle() {
@@ -443,6 +470,9 @@ function disposeApp() {
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     stateOverlay.removeEventListener('pointerdown', handleOverlayPointerDown);
     audioButton.removeEventListener('click', handleAudioToggle);
+    helpButton.removeEventListener('click', openHelp);
+    helpCloseButton.removeEventListener('click', closeHelp);
+    helpDialog.removeEventListener('close', restoreHelpFocus);
     pauseButton.removeEventListener('click', togglePause);
     restartButton.removeEventListener('click', restartRun);
     inputManager.destroy();
@@ -472,6 +502,9 @@ window.addEventListener('keydown', handleGameKey);
 document.addEventListener('visibilitychange', handleVisibilityChange);
 stateOverlay.addEventListener('pointerdown', handleOverlayPointerDown);
 audioButton.addEventListener('click', handleAudioToggle);
+helpButton.addEventListener('click', openHelp);
+helpCloseButton.addEventListener('click', closeHelp);
+helpDialog.addEventListener('close', restoreHelpFocus);
 pauseButton.addEventListener('click', togglePause);
 restartButton.addEventListener('click', restartRun);
 window.addEventListener('pagehide', disposeApp, { once: true });

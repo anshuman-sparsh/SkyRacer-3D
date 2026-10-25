@@ -17,6 +17,10 @@ export class SpeedParticles extends THREE.Points {
         super(geometry, material);
 
         this.particleCount = particleCount;
+        // Boost and Surge share the same effect. Hide a small fraction of the
+        // dots while boosting; keep all positions moving so returning to normal
+        // doesn't suddenly restart particles.
+        this.visibleParticleCount = particleCount;
         this.positions = positions;
         this.random = random;
         this.volume = { width: 23, height: 13, nearZ: -8, farZ: -72 };
@@ -48,15 +52,31 @@ export class SpeedParticles extends THREE.Points {
         }
 
         positionAttribute.needsUpdate = true;
+        const response = 1 - Math.exp(-7 * delta);
+        const targetCount = isBoosting
+            ? Math.round(this.particleCount * 0.82)
+            : this.particleCount;
+        this.visibleParticleCount = THREE.MathUtils.lerp(
+            this.visibleParticleCount, targetCount, response,
+        );
+        this.geometry.setDrawRange(0, Math.round(this.visibleParticleCount));
+
+        // Keep the feeling of acceleration without obscuring rings or the
+        // aiming reticle with enlarged, high-opacity speed particles.
         this.material.size = THREE.MathUtils.lerp(
             this.material.size,
-            isBoosting ? 0.16 : 0.075,
-            1 - Math.exp(-7 * delta),
+            isBoosting ? 0.125 : 0.075,
+            response,
+        );
+        this.material.opacity = THREE.MathUtils.lerp(
+            this.material.opacity,
+            isBoosting ? 0.51 : 0.58,
+            response,
         );
         this.scale.z = THREE.MathUtils.lerp(
             this.scale.z,
-            isBoosting ? 1.65 : 1,
-            1 - Math.exp(-7 * delta),
+            isBoosting ? 1.5 : 1,
+            response,
         );
     }
 

@@ -66,7 +66,7 @@
     .speed-lines.is-active { animation: speed-streak 480ms linear infinite; }
     .touch-controls { position: fixed; inset: auto 0 max(2vh, 14px); z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 0 max(3vw, 16px); pointer-events: none; }
     .touch-hint { padding: clamp(6px, 1.2vh, 8px) clamp(10px, 2.8vw, 14px); border: 1px solid var(--edge); border-radius: 999px; background: var(--panel); backdrop-filter: blur(10px); color: #bdb3e0; font: 650 clamp(8px, 2.2vw, 10px)/1 ui-monospace, Consolas, monospace; text-transform: uppercase; }
-    .touch-boost { min-width: 96px; min-height: 52px; border: 1px solid rgba(255,63,164,.5); border-radius: 999px; background: rgba(255,63,164,.18); backdrop-filter: blur(10px); color: #fff; font: 750 12px/1 ui-monospace, Consolas, monospace; letter-spacing: .08em; pointer-events: auto; touch-action: none; cursor: pointer; }
+    .touch-boost { min-width: 96px; min-height: 52px; border: 1px solid rgba(255,63,164,.5); border-radius: 999px; background: rgba(255,63,164,.18); backdrop-filter: blur(10px); color: #fff; font: 750 12px/1 ui-monospace, Consolas, monospace; letter-spacing: .08em; pointer-events: auto; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; cursor: pointer; }
     .touch-boost:focus-visible { outline: 2px solid var(--neon); outline-offset: 3px; }
     .touch-boost.is-active { background: rgba(255,63,164,.42); box-shadow: 0 0 24px rgba(255,63,164,.46); transform: scale(.96); }
     .touch-indicator { position: fixed; top: 0; left: 0; z-index: 2; width: 132px; height: 132px; margin: -66px 0 0 -66px; border: 1px solid rgba(94,240,255,.48); border-radius: 50%; opacity: 0; pointer-events: none; transform: translate3d(-200px, -200px, 0); transition: opacity 100ms ease; background: radial-gradient(circle, rgba(94,240,255,.06) 0 18%, rgba(11,6,32,.2) 19% 100%); box-shadow: inset 0 0 18px rgba(94,240,255,.08), 0 0 18px rgba(94,240,255,.12); will-change: transform, opacity; }
@@ -93,6 +93,28 @@
     .state-overlay__records { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
     .state-overlay__action[hidden] { display: none; }
     .state-overlay__action:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+    /* A discoverable help control, separate from gameplay touch controls. */
+    .help-open { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(18px, env(safe-area-inset-bottom)); z-index: 4; min-height: 35px; padding: 0 12px; border: 1px solid rgba(94, 240, 255, .5); border-radius: 999px; background: rgba(17, 10, 38, .86); color: #e9faff; font: 750 11px/1 ui-monospace, Consolas, monospace; letter-spacing: .02em; cursor: pointer; }
+    .help-open:hover { border-color: var(--neon); background: rgba(40, 26, 73, .94); }
+    .help-open:focus-visible, .help-close:focus-visible { outline: 2px solid var(--neon); outline-offset: 3px; }
+    .help-dialog { width: min(530px, calc(100vw - 24px)); max-width: 530px; max-height: min(82vh, 720px); max-height: min(82dvh, 720px); margin: auto; padding: clamp(16px, 3vw, 26px); overflow: auto; border: 1px solid rgba(94, 240, 255, .45); border-radius: 16px; background: #160e31; color: #effbff; box-shadow: 0 28px 80px rgba(0, 0, 0, .65); font-family: "Segoe UI", system-ui, sans-serif; }
+    .help-dialog::backdrop { background: rgba(7, 3, 19, .78); backdrop-filter: blur(4px); }
+    .help-dialog__head { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+    .help-dialog__title { margin: 0; color: var(--neon); font-size: clamp(19px, 4vw, 26px); line-height: 1.15; }
+    .help-dialog__intro { margin: 12px 0 15px; color: #e7dff7; font-size: 14px; line-height: 1.5; }
+    .help-close { flex: none; width: 35px; height: 35px; border: 1px solid var(--edge); border-radius: 50%; background: rgba(94, 240, 255, .06); color: #fff; font-size: 20px; cursor: pointer; }
+    .help-dialog__sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 10px; }
+    .help-dialog__section { padding: 12px; border: 1px solid rgba(94, 240, 255, .2); border-radius: 10px; background: rgba(94, 240, 255, .035); }
+    .help-dialog__section h3 { margin: 0 0 8px; color: #ff92c8; font-size: 13px; }
+    .help-dialog__section p { margin: 0 0 7px; color: #e0e0ef; font-size: 12px; line-height: 1.5; }
+    .help-dialog__section p:last-child { margin-bottom: 0; }
+    .help-dialog__section strong { color: #fff; }
+    .help-dialog__note { margin: 14px 0 0; font-size: 11px; color: #b7add6; line-height: 1.5; }
+    @media (max-width: 767px) {
+      .help-open { left: max(12px, env(safe-area-inset-left)); bottom: max(66px, calc(env(safe-area-inset-bottom) + 58px)); min-height: 32px; padding: 0 10px; font-size: 10px; }
+      .help-dialog__sections { grid-template-columns: 1fr; }
+      .help-dialog__section { padding: 10px 12px; }
+    }
     @keyframes state-pulse { 50% { opacity: .62; } }
     @keyframes speed-streak { to { background-position-y: 42px, 42px; } }
     @keyframes ring-confirm { 35% { color: #fff; transform: scale(1.35); text-shadow: 0 0 18px #fff; } }
@@ -177,6 +199,45 @@
       <button class="state-overlay__action" type="button" data-restart hidden>RESTART</button>
     </div>
   </div>
+  <button class="help-open" type="button" data-help-open aria-haspopup="dialog" aria-controls="how-to-play-dialog">? HOW TO PLAY</button>
+  <dialog class="help-dialog" id="how-to-play-dialog" data-help-dialog aria-labelledby="help-dialog-title">
+    <div class="help-dialog__head">
+      <h2 class="help-dialog__title" id="help-dialog-title">HOW TO PLAY</h2>
+      <button class="help-close" type="button" data-help-close aria-label="Close how to play">×</button>
+    </div>
+    <p class="help-dialog__intro">Fly through glowing rings, earn points, and dodge orange barriers. Hit a barrier and your run ends.</p>
+    <div class="help-dialog__sections">
+      <section class="help-dialog__section">
+        <h3>On a phone or tablet</h3>
+        <p><strong>Move:</strong> Touch and drag on the game. Drag left or right to steer, and up or down to change height.</p>
+        <p><strong>Go faster:</strong> Press and <strong>hold BOOST</strong> at the bottom-right. Let go to stop the manual boost.</p>
+      </section>
+      <section class="help-dialog__section">
+        <h3>On a computer</h3>
+        <p><strong>Move:</strong> Use <strong>W A S D</strong> or the arrow keys. W / Up climbs; S / Down descends.</p>
+        <p><strong>Go faster:</strong> Hold <strong>Space</strong> or <strong>Shift</strong>. Release to stop the manual boost.</p>
+        <p><strong>Pause:</strong> Press <strong>P</strong> or <strong>Esc</strong>.</p>
+      </section>
+      <section class="help-dialog__section">
+        <h3>What the rings do</h3>
+        <p><strong>Blue ring:</strong> Gives bonus points and a short automatic speed boost.</p>
+        <p><strong>Pink ring:</strong> Gives bonus points and a stronger speed surge.</p>
+        <p>Collecting more rings also increases your normal speed over time.</p>
+      </section>
+      <section class="help-dialog__section">
+        <h3>Aim, score, and energy</h3>
+        <p><strong>Green aim marker:</strong> Your current flight path is lined up with a ring. Keep steering carefully.</p>
+        <p><strong>Score:</strong> Get points for distance and collecting rings. Your best records are saved on this device.</p>
+        <p><strong>Energy Boost bar:</strong> Shows the time left on a blue ring's automatic boost. Holding BOOST is separate.</p>
+      </section>
+      <section class="help-dialog__section">
+        <h3>Pause, restart, and sound</h3>
+        <p>Use <strong>Pause / Resume</strong> to take a break, and <strong>Restart</strong> after a crash.</p>
+        <p>Use <strong>Audio On / Off</strong> to turn game sounds on or off.</p>
+      </section>
+    </div>
+    <p class="help-dialog__note">Opening this guide during a run pauses the game. Close it, then choose Resume to keep flying.</p>
+  </dialog>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

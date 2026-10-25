@@ -36,7 +36,10 @@ export class EnergyRing extends THREE.Group {
         super();
 
         const ringColor = color ?? (isSurge ? 0xff4fae : 0x70ffe6);
-        this.collectionRadius = radius * 0.72;
+        // A small extra margin around the rim lets near-edge passes count when
+        // the craft visually clips the opening, without accepting wide misses.
+        // Guidance reads this same radius, so its green cue stays consistent.
+        this.collectionRadius = radius * 0.8;
         this.isSurge = isSurge;
         this.rotationSpeed = isSurge ? 1.15 : 0.75;
         this.elapsed = Math.random() * Math.PI * 2;

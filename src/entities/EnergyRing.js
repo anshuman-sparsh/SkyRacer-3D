@@ -89,4 +89,30 @@ export class EnergyRing extends THREE.Group {
         const radius = this.collectionRadius + pointRadius;
         return this.position.distanceToSquared(point) <= radius * radius;
     }
+
+    /**
+     * Test the entire craft-centre movement segment, not only its end point.
+     * Keeps the established forgiving collection volume while preventing
+     * missed rings during boosts, surges and low/variable frame rates.
+     */
+    intersectsPath(from, to, pointRadius = 0.7) {
+        const radius = this.collectionRadius + pointRadius;
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const dz = to.z - from.z;
+        const lengthSquared = dx * dx + dy * dy + dz * dz;
+        if (lengthSquared <= 1e-12) return this.containsPoint(to, pointRadius);
+
+        const t = THREE.MathUtils.clamp(
+            ((this.position.x - from.x) * dx
+                + (this.position.y - from.y) * dy
+                + (this.position.z - from.z) * dz) / lengthSquared,
+            0,
+            1,
+        );
+        const closestX = from.x + t * dx - this.position.x;
+        const closestY = from.y + t * dy - this.position.y;
+        const closestZ = from.z + t * dz - this.position.z;
+        return closestX * closestX + closestY * closestY + closestZ * closestZ <= radius * radius;
+    }
 }

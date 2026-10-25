@@ -38,6 +38,7 @@ export class TrackManager {
         this.segmentPool = [];
         this.nextSegmentZ = 0;
         this.spawnedRingCount = 0;
+        this.previousCraftPosition = null;
 
         // Strict safe band: inside the guide rails, accounting for ring radius, and
         // never wider than the craft can actually reach. Guarantees every spawn is
@@ -57,12 +58,16 @@ export class TrackManager {
         let collided = false;
 
         const craftBox = hovercraft.refreshBounds();
+        // On first update, use a stationary sample. Thereafter test the entire
+        // path traveled since the last update so high-speed crossings register.
+        const pathStart = this.previousCraftPosition ?? hovercraft.position;
+        const pathEnd = hovercraft.position;
 
         for (let index = this.energyRings.length - 1; index >= 0; index -= 1) {
             const ring = this.energyRings[index];
             ring.update(delta);
 
-            const collected = ring.containsPoint(hovercraft.position);
+            const collected = ring.intersectsPath(pathStart, pathEnd);
             const passedBehind = ring.position.z > hovercraft.position.z + this.behindDistance;
             if (!collected && !passedBehind) continue;
 
@@ -86,6 +91,7 @@ export class TrackManager {
                 // Stop on the first intersection. No second impact, near-miss, or
                 // course-spawn work can occur during this terminal frame.
                 collided = true;
+                this.previousCraftPosition = hovercraft.position.clone();
                 return {
                     collectedRings,
                     collectedEnergyRings,
@@ -118,6 +124,7 @@ export class TrackManager {
         }
 
         this.#fillAhead(hovercraft.position.z);
+        this.previousCraftPosition = hovercraft.position.clone();
         return {
             collectedRings,
             collectedEnergyRings,
@@ -137,6 +144,7 @@ export class TrackManager {
         this.segments.length = 0;
         this.nextSegmentZ = 0;
         this.spawnedRingCount = 0;
+        this.previousCraftPosition = null;
         this.#fillAhead(0);
     }
 
@@ -154,6 +162,7 @@ export class TrackManager {
         this.surgeRingPool.length = 0;
         this.obstaclePool.length = 0;
         this.segmentPool.length = 0;
+        this.previousCraftPosition = null;
     }
 
     #fillAhead(craftZ) {

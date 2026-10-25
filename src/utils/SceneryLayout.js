@@ -28,16 +28,29 @@ export function buildSceneryLayout(width, length, segmentZ) {
                 * (station + 0.5) / SCENERY_STATIONS_PER_SIDE;
             const towerZ = markerZ
                 + (fraction(seed, side, station, 0) - 0.5) * length * 0.12;
+            // Alternate two subtle depth bands, never introducing landmarks
+            // into the flight corridor or changing gameplay RNG.
+            const farLayer = (station + (side > 0 ? 1 : 0)) % 2 === 1;
             placements.push({
                 markerX: side * (width / 2 + 2.1),
                 markerZ,
-                towerX: side * (width / 2 + 9 + fraction(seed, side, station, 1) * 9),
+                markerHeight: station % 3 === 0 ? 1.7 : 1.35,
+                markerWidth: station % 3 === 0 ? 0.18 : 0.13,
+                towerLayer: farLayer ? 'far' : 'near',
+                towerX: side * (width / 2 + (farLayer ? 20 : 9)
+                    + fraction(seed, side, station, 1) * (farLayer ? 7 : 8)),
                 towerZ,
-                towerHeight: 3.5 + fraction(seed, side, station, 2) * 8.5,
+                towerHeight: 3.5 + fraction(seed, side, station, 2) * (farLayer ? 5.7 : 8.5),
                 towerWidth: 1 + fraction(seed, side, station, 3) * 1.7,
                 towerDepth: 0.9 + fraction(seed, side, station, 4) * 1.5,
             });
         }
     }
     return placements;
+}
+
+/** Smooth, frame-rate-independent response for decorative light accents. */
+export function advanceSceneryGlow(current, enabled, delta) {
+    const blend = 1 - Math.exp(-4 * Math.max(0, delta));
+    return current + ((enabled ? 1 : 0) - current) * blend;
 }

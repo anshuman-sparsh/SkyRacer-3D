@@ -37,7 +37,7 @@ function plausibleScore(score: unknown, distance: unknown, rings: unknown, elaps
 
 export default {
   fetch: withSupabase({ auth: 'user' }, async (request, ctx) => {
-    const playerId = ctx.userClaims?.id;
+    const playerId = ctx.userClaims?.sub;
     if (!playerId) return invalid('Please sign in before using the leaderboard.', 401);
 
     // Reads require a player session but do not allow direct table access.

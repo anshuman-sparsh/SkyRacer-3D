@@ -66,8 +66,20 @@ export class Obstacle extends THREE.Group {
         super();
 
         this.name = 'NavigationBarrier';
-        this.halfExtents = new THREE.Vector3(BODY_WIDTH / 2, BODY_HEIGHT / 2, BODY_DEPTH / 2);
         this.boundingBox = new THREE.Box3();
+        // Solid central barrier and its two physical supports. Thin inset
+        // reduces phantom edge hits; the much larger glow is decorative only.
+        this.collisionParts = [
+            { name: 'body', x: 0, y: 0, z: 0,
+                hx: BODY_WIDTH / 2 - 0.06, hy: BODY_HEIGHT / 2 - 0.06,
+                hz: BODY_DEPTH / 2 - 0.03, box: new THREE.Box3() },
+            ...[-1, 1].map((side) => ({
+                name: side < 0 ? 'left-post' : 'right-post',
+                x: side * BODY_WIDTH * 0.42, y: -BODY_HEIGHT * 0.82, z: 0,
+                hx: 0.08, hy: 0.52, hz: 0.08, box: new THREE.Box3(),
+            })),
+        ];
+        this.collisionBoxes = this.collisionParts.map((part) => part.box);
         this.elapsed = Math.random() * Math.PI * 2;
         this.wasNearMissed = false;
 
@@ -106,15 +118,32 @@ export class Obstacle extends THREE.Group {
         this.groundAnchor.update(this.position.y, this.elapsed, 0.88 + pulse * 0.16);
     }
 
-    /** Refreshes the world-space bounds without traversing geometry each frame. */
+    /** Refit cached collider boxes from the actual body and support positions. */
     refreshBounds() {
-        this.boundingBox.min.copy(this.position).sub(this.halfExtents);
-        this.boundingBox.max.copy(this.position).add(this.halfExtents);
+        this.boundingBox.makeEmpty();
+        for (const part of this.collisionParts) {
+            const x = this.position.x + part.x;
+            const y = this.position.y + part.y;
+            const z = this.position.z + part.z;
+            part.box.min.set(x - part.hx, y - part.hy, z - part.hz);
+            part.box.max.set(x + part.hx, y + part.hy, z + part.hz);
+            this.boundingBox.union(part.box);
+        }
         return this.boundingBox;
     }
 
-    /** A single overlap is a terminal Navigation Barrier impact. */
-    intersects(craftBounds) {
-        return craftBounds.intersectsBox(this.refreshBounds());
+    /**
+     * First reject with the union boxes, then check pairs of solid parts.
+     * Neither empty AABB corners nor the emissive glow can cause termination.
+     */
+    intersects(craftBounds, craftCollisionBoxes) {
+        if (!craftBounds.intersectsBox(this.refreshBounds())) return false;
+        for (const obstacleBox of this.collisionBoxes) {
+            if (!craftBounds.intersectsBox(obstacleBox)) continue;
+            for (const craftBox of craftCollisionBoxes) {
+                if (craftBox.intersectsBox(obstacleBox)) return true;
+            }
+        }
+        return false;
     }
 }

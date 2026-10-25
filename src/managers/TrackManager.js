@@ -12,6 +12,7 @@ export class TrackManager {
     constructor(scene, {
         segmentLength = 24,
         trackWidth = 32,
+        reducedScenery = false,
         aheadDistance = 120,
         behindDistance = 48,
         ringSpawnChance = 0.65,
@@ -23,6 +24,7 @@ export class TrackManager {
         this.scene = scene;
         this.segmentLength = segmentLength;
         this.trackWidth = trackWidth;
+        this.reducedScenery = reducedScenery;
         this.aheadDistance = aheadDistance;
         this.behindDistance = behindDistance;
         this.ringSpawnChance = ringSpawnChance;
@@ -87,7 +89,7 @@ export class TrackManager {
             const obstacle = this.obstacles[index];
             obstacle.update(delta);
 
-            if (!hovercraft.isSpinningOut && obstacle.intersects(craftBox)) {
+            if (!hovercraft.isSpinningOut && obstacle.intersects(craftBox, hovercraft.collisionBoxes)) {
                 // Stop on the first intersection. No second impact, near-miss, or
                 // course-spawn work can occur during this terminal frame.
                 collided = true;
@@ -198,6 +200,7 @@ export class TrackManager {
         return this.segmentPool.pop() ?? new TrackSegment({
             length: this.segmentLength,
             width: this.trackWidth,
+            reducedScenery: this.reducedScenery,
         });
     }
 
@@ -219,6 +222,7 @@ export class TrackManager {
 
     #spawnSegment(z) {
         const segment = this.#acquireSegment();
+        segment.setScenerySeed(z);
         segment.position.z = z;
         segment.visible = true;
         this.segments.push(segment);

@@ -7,6 +7,9 @@ const MAX_LOOKAHEAD_SECONDS = 1.6;
 const GUIDANCE_EXIT_BUFFER = 2.5;
 const MARKER_FORWARD_OFFSET = 11;
 const TRACK_SURFACE_Y = 0.015;
+// Match the ring's existing forgiving craft-centre collection radius.
+const CRAFT_COLLECTION_RADIUS = 0.7;
+const LANE_EXIT_BUFFER = 0.35;
 
 /**
  * The diamond follows the aircraft's lane, while proximity, alignment and
@@ -80,7 +83,15 @@ export class RingGuidance extends THREE.Group {
             const retaining = ring === this.target;
             const minimum = retaining ? 0 : MIN_GUIDANCE_DISTANCE;
             const maximum = lookahead + (retaining ? GUIDANCE_EXIT_BUFFER : 0);
-            if (distance >= minimum && distance <= maximum
+            // Only guide toward rings already in the craft's current X/Y
+            // flight lane. Use the same forgiving radius as ring collection,
+            // with a small exit buffer to avoid boundary flicker.
+            const laneRadius = ring.collectionRadius + CRAFT_COLLECTION_RADIUS
+                + (retaining ? LANE_EXIT_BUFFER : 0);
+            const laneX = ring.position.x - craft.position.x;
+            const laneY = ring.position.y - craft.position.y;
+            const inCurrentLane = laneX * laneX + laneY * laneY <= laneRadius * laneRadius;
+            if (inCurrentLane && distance >= minimum && distance <= maximum
                 && distance < nearestDistance) {
                 nearest = ring;
                 nearestDistance = distance;

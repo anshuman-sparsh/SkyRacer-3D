@@ -203,7 +203,11 @@ function restartRun() {
 async function handleGameKey(event) {
     // Help is a native modal. Opening it with Enter must not start the game,
     // and keys pressed while reading the guide must not resume gameplay.
-    if (helpDialog.open || event.target === helpButton) return;
+    if (helpDialog.open) return;
+    // Enter/Space should activate a focused Help button, not start a run.
+    // Other gameplay keys must still work after the player closes Help.
+    if (event.target === helpButton
+        && (event.code === 'Enter' || event.code === 'Space')) return;
     if (event.repeat) return;
 
     if (gameState === 'start') {

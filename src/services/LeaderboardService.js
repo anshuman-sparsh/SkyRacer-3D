@@ -20,7 +20,7 @@ export class LeaderboardService {
     constructor({
         url = import.meta.env?.VITE_SUPABASE_URL,
         publishableKey = import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY,
-        fetchImpl = globalThis.fetch,
+        fetchImpl = (...args) => globalThis.fetch(...args),
         storage = null,
     } = {}) {
         this.url = typeof url === 'string' ? url.trim().replace(/\/+$/, '') : '';

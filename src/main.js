@@ -15,6 +15,7 @@ import {
 } from './entities/TrackSegment.js';
 import { InputManager } from './managers/InputManager.js';
 import { ScoreManager } from './managers/ScoreManager.js';
+import { RingCollectionDeadline } from './managers/RingCollectionDeadline.js';
 import { LeaderboardService } from './services/LeaderboardService.js';
 import { TrackManager } from './managers/TrackManager.js';
 import { AudioEngine } from './utils/AudioEngine.js';
@@ -50,6 +51,7 @@ const collisionDebug = new URLSearchParams(window.location.search).get('debugHit
     ? new CollisionDebug(scene, hovercraft, trackManager)
     : null;
 const scoreManager = new ScoreManager();
+const ringCollectionDeadline = new RingCollectionDeadline();
 const leaderboard = new LeaderboardService();
 const speedParticles = new SpeedParticles();
 const audioEngine = new AudioEngine();
@@ -61,6 +63,8 @@ cameraDynamics.snapTo(hovercraft);
 
 const scoreElement = document.querySelector('[data-score]');
 const ringsElement = document.querySelector('[data-rings]');
+const ringDeadlineElement = document.querySelector('[data-ring-deadline]');
+const ringDeadlineSecondsElement = document.querySelector('[data-ring-deadline-seconds]');
 const speedElement = document.querySelector('[data-speed]');
 const speedArcElement = document.querySelector('[data-speed-arc]');
 const boostElement = document.querySelector('[data-boost]');
@@ -116,6 +120,7 @@ let resizeFrameId = 0;
 let hudElapsed = HUD_UPDATE_INTERVAL;
 let lastScoreText = '';
 let lastRingsText = '';
+let lastRingDeadlineSeconds = null;
 let lastSpeedText = '';
 let lastSpeedOffset = '';
 let lastBoostWidth = '';
@@ -140,17 +145,36 @@ const isTouchPrimary = window.matchMedia('(pointer: coarse)').matches;
 const STATE_COPY = {
     start: [
         isTouchPrimary ? 'TAP TO START' : 'PRESS ANY KEY TO START',
-        'APPROACH RINGS • GREEN MARKER = ALIGNED',
+        'COLLECT A RING EVERY 30 SECONDS • GREEN MARKER = ALIGNED',
     ],
     paused: [
         'GAME PAUSED',
         isTouchPrimary ? 'TAP ANYWHERE OR PRESS RESUME' : 'PRESS P OR RESUME TO CONTINUE',
     ],
     terminated: ['FLIGHT TERMINATED', 'NAVIGATION BARRIER CONTACT'],
+    ringTimeout: ['FLIGHT TERMINATED', 'NO RING COLLECTED FOR 30 SECONDS'],
 };
 
-function setGameState(nextState) {
+function updateRingDeadlineDisplay() {
+    const remaining = gameState === 'running' ? ringCollectionDeadline.countdownSeconds : null;
+    ringDeadlineElement.hidden = remaining === null;
+    if (remaining === null) {
+        lastRingDeadlineSeconds = null;
+        ringDeadlineElement.classList.remove('is-critical');
+        return;
+    }
+
+    // Update the DOM only when the visible countdown changes whole seconds.
+    if (remaining !== lastRingDeadlineSeconds) {
+        ringDeadlineSecondsElement.textContent = String(remaining);
+        lastRingDeadlineSeconds = remaining;
+    }
+    ringDeadlineElement.classList.toggle('is-critical', remaining <= 3);
+}
+
+function setGameState(nextState, terminationReason = 'collision') {
     gameState = nextState;
+    updateRingDeadlineDisplay();
     const isRunning = nextState === 'running';
     const isTerminated = nextState === 'terminated';
     if (!isRunning) ringGuidance.hide();
@@ -183,7 +207,9 @@ function setGameState(nextState) {
         isTerminated && scoreManager.isNewBestRings,
     );
 
-    const copy = STATE_COPY[nextState];
+    const copy = nextState === 'terminated' && terminationReason === 'ring-timeout'
+        ? STATE_COPY.ringTimeout
+        : STATE_COPY[nextState];
     if (copy) {
         stateTitle.textContent = copy[0];
         stateMessage.textContent = copy[1];
@@ -225,6 +251,8 @@ function togglePause() {
 function restartRun() {
     ringGuidance.hide();
     scoreManager.reset();
+    ringCollectionDeadline.reset();
+    updateRingDeadlineDisplay();
     hovercraft.reset();
     trackManager.reset();
     cameraDynamics.snapTo(hovercraft);
@@ -475,7 +503,10 @@ function updateHud() {
 }
 
 function animate() {
-    const delta = Math.min(clock.getDelta(), 0.05);
+    // Physics remains frame-capped, but the ring deadline uses real elapsed
+    // active-play seconds so low frame rates cannot extend its 30-second limit.
+    const frameDelta = clock.getDelta();
+    const delta = Math.min(frameDelta, 0.05);
     inputManager.update(delta);
 
     if (gameState === 'running' || gameState === 'terminated') {
@@ -491,6 +522,11 @@ function animate() {
             nearMisses,
             collided,
         } = trackManager.update(delta, hovercraft);
+
+        // The countdown uses active-game delta, not wall-clock time. A ring
+        // picked up on the expiration frame resets the deadline first.
+        const ringDeadlineExpired = ringCollectionDeadline.advance(frameDelta, collectedRings);
+        updateRingDeadlineDisplay();
 
         // Commit ring rewards even when a barrier impact occurs in the same
         // frame. Ring removal has already happened inside TrackManager, so
@@ -515,11 +551,13 @@ function animate() {
             ringsElement.classList.add('is-collected');
         }
 
-        // A single obstacle overlap still ends the session immediately.
-        if (collided) {
+        // Either a barrier impact or 30 seconds without collecting a ring
+        // ends the run. Use the established spin-out to stop aircraft motion.
+        if (collided || ringDeadlineExpired) {
+            if (!collided) scoreManager.update(delta, hovercraft.velocity);
             hovercraft.spinOut();
-            cameraDynamics.addShake(1.1);
-            setGameState('terminated');
+            cameraDynamics.addShake(collided ? 1.1 : 0.45);
+            setGameState('terminated', collided ? 'collision' : 'ring-timeout');
             cameraDynamics.update(delta, hovercraft, false);
             audioEngine.update(0, false);
             hudElapsed = HUD_UPDATE_INTERVAL;

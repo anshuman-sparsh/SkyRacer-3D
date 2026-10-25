@@ -59,6 +59,11 @@
     .hud-button::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--neon); box-shadow: 0 0 8px var(--neon); }
     .hud-button.is-off::before { background: #6b6390; box-shadow: none; }
     .hud-button:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
+    /* Visible only during the final ten seconds without a collected ring. */
+    .ring-deadline { position: fixed; top: clamp(125px, 18vh, 175px); left: 50%; z-index: 2; transform: translateX(-50%); display: flex; align-items: center; justify-content: center; gap: clamp(7px, 1.5vw, 13px); max-width: calc(100vw - 24px); padding: 9px 16px; border-color: rgba(255, 63, 164, .75); background: rgba(35, 9, 39, .82); color: #ffe9f4; font: 800 clamp(10px, 1.5vw, 13px)/1 ui-monospace, Consolas, monospace; letter-spacing: .04em; white-space: nowrap; pointer-events: none; }
+    .ring-deadline[hidden] { display: none; }
+    .ring-deadline__seconds { color: #ff7ab9; font-size: clamp(23px, 3.4vw, 35px); line-height: 1; text-shadow: 0 0 15px rgba(255, 63, 164, .7); font-variant-numeric: tabular-nums; }
+    .ring-deadline.is-critical { border-color: #ff7ab9; animation: ring-deadline-pulse 650ms ease-in-out infinite alternate; }
     .speed-lines { position: fixed; inset: 0; z-index: 1; opacity: 0; pointer-events: none; transition: opacity 180ms linear; background:
       repeating-linear-gradient(90deg, rgba(94,240,255,.5) 0 2px, transparent 2px 42px) left / 16vw 100% no-repeat,
       repeating-linear-gradient(90deg, rgba(255,63,164,.5) 0 2px, transparent 2px 42px) right / 16vw 100% no-repeat;
@@ -136,6 +141,7 @@
     @media (max-width: 767px) {
       .leaderboard-open { left: max(12px, env(safe-area-inset-left)); bottom: max(107px, calc(env(safe-area-inset-bottom) + 99px)); min-height: 32px; font-size: 10px; padding: 0 10px; }
     }
+    @keyframes ring-deadline-pulse { to { box-shadow: 0 0 22px rgba(255, 63, 164, .5); } }
     @keyframes state-pulse { 50% { opacity: .62; } }
     @keyframes speed-streak { to { background-position-y: 42px, 42px; } }
     @keyframes ring-confirm { 35% { color: #fff; transform: scale(1.35); text-shadow: 0 0 18px #fff; } }
@@ -147,6 +153,8 @@
       .boost-meter__fill { transition-duration: 60ms; }
       .speed-lines { display: none; }
       .hud { inset: max(env(safe-area-inset-top), 5px) max(env(safe-area-inset-right), 6px) auto max(env(safe-area-inset-left), 6px); grid-template-columns: minmax(68px, .72fr) minmax(82px, 1fr) minmax(112px, 1.18fr); gap: clamp(3px, 1.2vw, 7px); max-height: 13vh; max-height: 13dvh; }
+      .ring-deadline { top: max(82px, 17dvh); padding: 7px 10px; gap: 7px; font-size: clamp(8px, 2.3vw, 11px); }
+      .ring-deadline__seconds { font-size: clamp(20px, 6vw, 29px); }
       .glass-panel { border-radius: clamp(5px, 1.6vw, 8px); }
       .hud__label { font-size: clamp(.42rem, 1.7vw, .54rem); }
       .speedometer { height: min(12vh, 76px); height: min(12dvh, 76px); padding: 2px; aspect-ratio: auto; }
@@ -200,6 +208,11 @@
       </div>
     </div>
   </div>
+  <div class="ring-deadline glass-panel" data-ring-deadline role="timer" aria-live="off" hidden>
+    <span>COLLECT A RING</span>
+    <strong class="ring-deadline__seconds" data-ring-deadline-seconds>10</strong>
+    <span>SEC LEFT</span>
+  </div>
   <div class="touch-controls">
     <span class="touch-hint">Drag to steer / climb</span>
     <button class="touch-boost" type="button" data-touch-boost>BOOST</button>
@@ -227,7 +240,7 @@
       <h2 class="help-dialog__title" id="help-dialog-title">HOW TO PLAY</h2>
       <button class="help-close" type="button" data-help-close aria-label="Close how to play">×</button>
     </div>
-    <p class="help-dialog__intro">Fly through glowing rings, earn points, and dodge orange barriers. Hit a barrier and your run ends.</p>
+    <p class="help-dialog__intro">Fly through glowing rings, earn points, and dodge orange barriers. Hit a barrier or miss the ring deadline and your run ends.</p>
     <div class="help-dialog__sections">
       <section class="help-dialog__section">
         <h3>On a phone or tablet</h3>
@@ -245,6 +258,7 @@
         <p><strong>Blue ring:</strong> Gives bonus points and a short automatic speed boost.</p>
         <p><strong>Pink ring:</strong> Gives bonus points and a stronger speed surge.</p>
         <p>Collecting more rings also increases your normal speed over time.</p>
+        <p><strong>Ring deadline:</strong> Collect any ring within 30 seconds to keep flying. After 20 seconds without a ring, a visible 10-second countdown begins. Every collected ring resets the timer. Pausing also pauses the countdown.</p>
       </section>
       <section class="help-dialog__section">
         <h3>Aim, score, and energy</h3>

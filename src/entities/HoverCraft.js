@@ -18,6 +18,23 @@ const SURGE_DURATION = 1.6;
 const OVERSPEED_DECAY_RESPONSE = 1.65;
 const TIMER_EPSILON = 1e-6;
 
+// Conservative solid-body approximations. Small separate shapes avoid the
+// empty corners of the former single aircraft AABB; trails/glows never collide.
+// Local-space centres follow the procedural meshes in #buildModel().
+const COLLISION_SHAPES = [
+    ['hull', 0, 0, -0.25, 0.52, 0.30, 1.35],
+    ['nose', 0, 0, -1.90, 0.24, 0.22, 0.82],
+    ['canopy', 0, 0.40, -0.75, 0.32, 0.31, 0.57],
+    ['rear-hull', 0, -0.05, 1.28, 0.40, 0.27, 0.68],
+    ['tail-fin', 0, 0.37, 1.24, 0.11, 0.43, 0.56],
+    ['left-wing', -1.15, -0.08, 0.62, 0.85, 0.09, 0.43],
+    ['right-wing', 1.15, -0.08, 0.62, 0.85, 0.09, 0.43],
+    ['left-wingtip', -2.08, -0.01, 1.19, 0.51, 0.08, 0.35],
+    ['right-wingtip', 2.08, -0.01, 1.19, 0.51, 0.08, 0.35],
+    ['left-engine', -0.82, -0.08, 1.60, 0.30, 0.29, 1.04],
+    ['right-engine', 0.82, -0.08, 1.60, 0.30, 0.29, 1.04],
+];
+
 class EngineTrailRibbon extends THREE.Mesh {
     constructor(side) {
         const geometry = new THREE.PlaneGeometry(0.42, 4.8, 1, 7);
@@ -57,8 +74,15 @@ export class HoverCraft extends THREE.Group {
         super();
 
         this.velocity = new THREE.Vector3();
-        this.halfExtents = new THREE.Vector3(1.3, 0.5, 1.9);
+        // Reuse these boxes every frame: no collision-related GPU or heap churn.
         this.boundingBox = new THREE.Box3();
+        this.collisionParts = COLLISION_SHAPES.map(([name, x, y, z, hx, hy, hz]) => ({
+            name,
+            centre: new THREE.Vector3(x, y, z),
+            halfExtents: new THREE.Vector3(hx, hy, hz),
+            box: new THREE.Box3(),
+        }));
+        this.collisionBoxes = this.collisionParts.map((part) => part.box);
         this.isSpinningOut = false;
         this.spinOutTime = 0;
         this.spinRate = 0;
@@ -310,10 +334,42 @@ export class HoverCraft extends THREE.Group {
         this.speedSurgeTimeRemaining = 0;
     }
 
-    /** Refreshes world-space bounds from the cached local extents. */
+    /**
+     * Updates conservative AABBs for the solid aircraft parts, including its
+     * visible pitch/bank. The union is a broad-phase reject; callers use the
+     * individual boxes for the actual collision so empty corners cannot hit.
+     */
     refreshBounds() {
-        this.boundingBox.min.copy(this.position).sub(this.halfExtents);
-        this.boundingBox.max.copy(this.position).add(this.halfExtents);
+        const sinPitch = Math.sin(this.visual.rotation.x);
+        const cosPitch = Math.cos(this.visual.rotation.x);
+        const sinRoll = Math.sin(this.visual.rotation.z);
+        const cosRoll = Math.cos(this.visual.rotation.z);
+        const absSinPitch = Math.abs(sinPitch);
+        const absCosPitch = Math.abs(cosPitch);
+        const absSinRoll = Math.abs(sinRoll);
+        const absCosRoll = Math.abs(cosRoll);
+        const world = this.position;
+
+        this.boundingBox.makeEmpty();
+        for (const part of this.collisionParts) {
+            const { centre, halfExtents, box } = part;
+            // Three.js's default XYZ Euler order: X pitch, then Z bank
+            // (rotation around local Y is always zero for this visual).
+            const rolledY = sinRoll * centre.x + cosRoll * centre.y;
+            const x = world.x + cosRoll * centre.x - sinRoll * centre.y;
+            const y = world.y + cosPitch * rolledY - sinPitch * centre.z;
+            const z = world.z + sinPitch * rolledY + cosPitch * centre.z;
+
+            const hx = absCosRoll * halfExtents.x + absSinRoll * halfExtents.y;
+            const hy = absCosPitch * (absSinRoll * halfExtents.x
+                + absCosRoll * halfExtents.y) + absSinPitch * halfExtents.z;
+            const hz = absSinPitch * (absSinRoll * halfExtents.x
+                + absCosRoll * halfExtents.y) + absCosPitch * halfExtents.z;
+
+            box.min.set(x - hx, y - hy, z - hz);
+            box.max.set(x + hx, y + hy, z + hz);
+            this.boundingBox.union(box);
+        }
         return this.boundingBox;
     }
 

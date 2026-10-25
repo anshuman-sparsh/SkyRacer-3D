@@ -197,9 +197,12 @@ function setGameState(nextState) {
 
 function beginOnlineRun() {
     onlineSubmitted = false;
-    // Online registration happens off the render loop and never delays gameplay.
+
     onlineRunPromise = leaderboard.enabled
-        ? leaderboard.beginRun().catch(() => null)
+        ? leaderboard.beginRun().catch((error) => {
+            console.error('[SkyRacer] Online run registration failed:', error);
+            return null;
+        })
         : null;
 }
 

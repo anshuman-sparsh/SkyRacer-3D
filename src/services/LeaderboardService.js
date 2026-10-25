@@ -21,14 +21,21 @@ export class LeaderboardService {
         url = import.meta.env?.VITE_SUPABASE_URL,
         publishableKey = import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY,
         fetchImpl = globalThis.fetch,
-        storage = globalThis.localStorage,
+        storage = null,
     } = {}) {
         this.url = typeof url === 'string' ? url.trim().replace(/\/+$/, '') : '';
         this.key = typeof publishableKey === 'string' ? publishableKey.trim() : '';
         this.enabled = /^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(this.url)
             && this.key.length > 0 && typeof fetchImpl === 'function';
         this.fetchImpl = fetchImpl;
-        this.storage = storage;
+        // Browsers can throw just from reading localStorage (privacy mode).
+        // Keep the entire game usable even if persistent storage is blocked.
+        if (storage !== null) {
+            this.storage = storage;
+        } else {
+            try { this.storage = globalThis.localStorage ?? null; }
+            catch { this.storage = null; }
+        }
         this.authPromise = null;
         this.session = this.#loadSession();
     }

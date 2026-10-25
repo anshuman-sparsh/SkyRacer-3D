@@ -15,6 +15,7 @@ import { ScoreManager } from './managers/ScoreManager.js';
 import { TrackManager } from './managers/TrackManager.js';
 import { AudioEngine } from './utils/AudioEngine.js';
 import { disposeObject3D } from './utils/Memory.js';
+import { CollisionDebug } from './utils/CollisionDebug.js';
 
 inject();
 
@@ -35,6 +36,10 @@ const trackManager = new TrackManager(scene, {
     craftBounds: hovercraft.bounds,
 });
 const ringGuidance = new RingGuidance();
+// Opt-in diagnostic only: append ?debugHitboxes=1 to a local game URL.
+const collisionDebug = new URLSearchParams(window.location.search).get('debugHitboxes') === '1'
+    ? new CollisionDebug(scene, hovercraft, trackManager)
+    : null;
 const scoreManager = new ScoreManager();
 const speedParticles = new SpeedParticles();
 const audioEngine = new AudioEngine();
@@ -389,6 +394,7 @@ function animate() {
         wasBoosting = false;
     }
 
+    collisionDebug?.update();
     renderer.render(scene, camera);
     animationFrameId = requestAnimationFrame(animate);
 }
@@ -425,6 +431,7 @@ function disposeApp() {
     pauseButton.removeEventListener('click', togglePause);
     restartButton.removeEventListener('click', restartRun);
     inputManager.destroy();
+    collisionDebug?.dispose();
     ringGuidance.dispose();
     scene.remove(ringGuidance);
     trackManager.destroy();

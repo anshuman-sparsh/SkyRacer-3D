@@ -219,6 +219,7 @@ export class TrackManager {
 
     #spawnSegment(z) {
         const segment = this.#acquireSegment();
+        segment.setScenerySeed(z);
         segment.position.z = z;
         segment.visible = true;
         this.segments.push(segment);

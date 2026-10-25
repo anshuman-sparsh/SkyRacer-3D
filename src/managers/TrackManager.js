@@ -12,6 +12,7 @@ export class TrackManager {
     constructor(scene, {
         segmentLength = 24,
         trackWidth = 32,
+        reducedScenery = false,
         aheadDistance = 120,
         behindDistance = 48,
         ringSpawnChance = 0.65,
@@ -23,6 +24,7 @@ export class TrackManager {
         this.scene = scene;
         this.segmentLength = segmentLength;
         this.trackWidth = trackWidth;
+        this.reducedScenery = reducedScenery;
         this.aheadDistance = aheadDistance;
         this.behindDistance = behindDistance;
         this.ringSpawnChance = ringSpawnChance;
@@ -198,6 +200,7 @@ export class TrackManager {
         return this.segmentPool.pop() ?? new TrackSegment({
             length: this.segmentLength,
             width: this.trackWidth,
+            reducedScenery: this.reducedScenery,
         });
     }
 

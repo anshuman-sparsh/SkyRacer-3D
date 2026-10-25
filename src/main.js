@@ -140,7 +140,7 @@ const isTouchPrimary = window.matchMedia('(pointer: coarse)').matches;
 const STATE_COPY = {
     start: [
         isTouchPrimary ? 'TAP TO START' : 'PRESS ANY KEY TO START',
-        'FLY THROUGH RING CENTRES • GREEN MARKER = ALIGNED',
+        'FLY THROUGH RING CENTRES • GREEN MARKER = FLIGHT PATH',
     ],
     paused: [
         'GAME PAUSED',
@@ -540,7 +540,7 @@ function animate() {
             wasBoosting = hasSpeedFx;
 
             cameraDynamics.update(delta, hovercraft, isBoosting, isSurging);
-            ringGuidance.update(trackManager.energyRings, hovercraft);
+            ringGuidance.update(hovercraft);
             const liveForwardSpeed = Math.max(0, -hovercraft.velocity.z);
             speedParticles.update(delta, camera, liveForwardSpeed, hasSpeedFx);
             audioEngine.update(liveForwardSpeed, hasSpeedFx);

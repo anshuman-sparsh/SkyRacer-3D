@@ -9,7 +9,10 @@ import { HoverCraft } from './entities/HoverCraft.js';
 import { RingGuidance } from './entities/RingGuidance.js';
 import { disposeObstacleResources } from './entities/Obstacle.js';
 import { SpeedParticles } from './entities/SpeedParticles.js';
-import { disposeTrackSegmentResources } from './entities/TrackSegment.js';
+import {
+    disposeTrackSegmentResources,
+    updateTrackLightResponse,
+} from './entities/TrackSegment.js';
 import { InputManager } from './managers/InputManager.js';
 import { ScoreManager } from './managers/ScoreManager.js';
 import { TrackManager } from './managers/TrackManager.js';
@@ -23,10 +26,14 @@ const TRACK_WIDTH = 32;
 const SPEED_LINE_THRESHOLD = 0.62;
 const SPEEDOMETER_MAX_KMH = 180;
 const HUD_UPDATE_INTERVAL = 1 / 20;
+// Preserve the full skyline on desktop while reducing decorative work on touch
+// devices and narrow viewports; gameplay objects are never affected.
+const reducedScenery = window.matchMedia('(pointer: coarse)').matches
+    || Math.min(window.innerWidth, window.innerHeight) < 600;
 
 const container = document.querySelector('#app');
 const renderer = createRenderer(container);
-const { scene, starField } = createScene();
+const { scene, starField } = createScene({ reducedScenery });
 const camera = createCamera(container.clientWidth / container.clientHeight);
 const cameraDynamics = new CameraDynamics(camera);
 const clock = new THREE.Clock();
@@ -34,6 +41,7 @@ const hovercraft = new HoverCraft({ trackWidth: TRACK_WIDTH });
 const trackManager = new TrackManager(scene, {
     trackWidth: TRACK_WIDTH,
     craftBounds: hovercraft.bounds,
+    reducedScenery,
 });
 const ringGuidance = new RingGuidance();
 // Opt-in diagnostic only: append ?debugHitboxes=1 to a local game URL.
@@ -394,6 +402,13 @@ function animate() {
         wasBoosting = false;
     }
 
+    // Smooth shared-material accents only; physics, rings and speed particles
+    // retain their existing behavior and visibility.
+    updateTrackLightResponse(delta, gameState === 'running' && (
+        inputManager.state.boost
+        || hovercraft.energyBoostTimeRemaining > 0
+        || hovercraft.isSpeedSurging
+    ));
     collisionDebug?.update();
     renderer.render(scene, camera);
     animationFrameId = requestAnimationFrame(animate);

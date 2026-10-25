@@ -503,7 +503,10 @@ function updateHud() {
 }
 
 function animate() {
-    const delta = Math.min(clock.getDelta(), 0.05);
+    // Physics remains frame-capped, but the ring deadline uses real elapsed
+    // active-play seconds so low frame rates cannot extend its 30-second limit.
+    const frameDelta = clock.getDelta();
+    const delta = Math.min(frameDelta, 0.05);
     inputManager.update(delta);
 
     if (gameState === 'running' || gameState === 'terminated') {
@@ -522,7 +525,7 @@ function animate() {
 
         // The countdown uses active-game delta, not wall-clock time. A ring
         // picked up on the expiration frame resets the deadline first.
-        const ringDeadlineExpired = ringCollectionDeadline.advance(delta, collectedRings);
+        const ringDeadlineExpired = ringCollectionDeadline.advance(frameDelta, collectedRings);
         updateRingDeadlineDisplay();
 
         // Commit ring rewards even when a barrier impact occurs in the same

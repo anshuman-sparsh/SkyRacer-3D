@@ -1,4 +1,10 @@
-const HIGH_SCORE_KEY = 'skyracer_highscore';
+// Version the score record because earlier runs awarded 500 instead of 50
+// points per ring. Keep the legacy key intact, but never compare old scores
+// against runs played under the revised rules.
+const HIGH_SCORE_KEY = 'skyracer_highscore_v2';
+export const SCORE_VERSION = 2;
+export const SCORE_PER_DISTANCE_UNIT = 10;
+export const RING_BONUS_POINTS = 50;
 const BEST_RINGS_KEY = 'skyracer_best_rings';
 const PERSIST_INTERVAL = 2;
 const RINGS_PER_SPEED_LEVEL = 6;
@@ -19,7 +25,7 @@ function readStoredRecord(key) {
 }
 
 export class ScoreManager {
-    constructor({ ringBonus = 500 } = {}) {
+    constructor({ ringBonus = RING_BONUS_POINTS } = {}) {
         this.distance = 0;
         this.currentVelocity = 0;
         this.ringsCollected = 0;
@@ -38,7 +44,7 @@ export class ScoreManager {
         this.currentVelocity = Math.max(0, -velocity.z);
         const distanceStep = this.currentVelocity * delta;
         this.distance += distanceStep;
-        this.score += distanceStep * 10;
+        this.score += distanceStep * SCORE_PER_DISTANCE_UNIT;
 
         this.#trackHighScore();
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createPointTexture } from '../utils/PointTexture.js';
 
 const SKY_COLOR = 0x0b0620;
 // Let rings and obstacles remain readable a little earlier, while distant
@@ -6,10 +7,9 @@ const SKY_COLOR = 0x0b0620;
 const FOG_DENSITY = 0.0128;
 
 /**
- * Procedural starfield built from a single BufferGeometry point cloud. No texture
- * is allocated at all, so the GPU cost is just the position buffer: 2600 vertices
- * x 3 floats x 4 bytes is roughly 31KB. The cloud follows the craft, so its static
- * vertex buffer never needs to cross the CPU/GPU boundary again during a run.
+ * A distant upper-sky dome, rendered in one draw call with a tiny procedural
+ * soft-dot sprite. Static vertices follow the craft horizontally without ever
+ * entering its flight corridor or needing per-frame buffer uploads.
  */
 class StarField extends THREE.Points {
     constructor({ count = 2600, random = Math.random } = {}) {
@@ -17,18 +17,20 @@ class StarField extends THREE.Points {
         const geometry = new THREE.BufferGeometry();
         const material = new THREE.PointsMaterial({
             color: 0xd9c8ff,
-            size: 0.42,
+            map: createPointTexture(),
+            size: 0.36,
             sizeAttenuation: true,
             transparent: true,
-            opacity: 0.77,
+            opacity: 0.68,
             depthWrite: false,
+            alphaTest: 0.01,
+            fog: false,
         });
 
         super(geometry, material);
 
         this.positions = positions;
         this.random = random;
-        this.volume = { width: 150, height: 90, depth: 260 };
         this.drift = 0;
         this.frustumCulled = false;
         this.name = 'StarField';
@@ -42,9 +44,15 @@ class StarField extends THREE.Points {
 
     #placeStar(index) {
         const offset = index * 3;
-        this.positions[offset] = (this.random() * 2 - 1) * this.volume.width;
-        this.positions[offset + 1] = (this.random() * 2 - 1) * this.volume.height;
-        this.positions[offset + 2] = (this.random() * 2 - 1) * this.volume.depth;
+        const azimuth = this.random() * Math.PI * 2;
+        // Uniform solid-angle sampling above ~15 degrees elevation. Even the
+        // lowest star stays >28 units high, well above the 1–10 flight band.
+        const elevationSin = THREE.MathUtils.lerp(0.26, 0.96, this.random());
+        const radius = THREE.MathUtils.lerp(110, 135, this.random());
+        const horizontalRadius = radius * Math.sqrt(1 - elevationSin * elevationSin);
+        this.positions[offset] = Math.cos(azimuth) * horizontalRadius;
+        this.positions[offset + 1] = elevationSin * radius;
+        this.positions[offset + 2] = Math.sin(azimuth) * horizontalRadius;
     }
 
     /**
@@ -53,12 +61,15 @@ class StarField extends THREE.Points {
      */
     update(delta, craftPosition) {
         this.drift += delta * 0.6;
-        this.position.set(craftPosition.x * 0.35, craftPosition.y * 0.2, craftPosition.z);
-        this.rotation.z = Math.sin(this.drift * 0.05) * 0.02;
+        this.position.set(craftPosition.x, 0, craftPosition.z);
+        // Yaw preserves every star's height; rolling the cloud lowered stars
+        // toward the course. Following Z continuously also avoids wrap pops.
+        this.rotation.y = Math.sin(this.drift * 0.05) * 0.02;
     }
 
     dispose() {
         this.geometry.dispose();
+        this.material.map.dispose();
         this.material.dispose();
     }
 }

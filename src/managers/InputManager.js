@@ -86,7 +86,7 @@ export class InputManager {
     #setKeyState(event, isPressed) {
         // A keyboard-focused help control must retain native Enter/Space
         // activation. Gameplay input resumes normally after the dialog closes.
-        if (event.target?.closest?.('[data-help-open], [data-help-dialog]')) return;
+        if (event.target?.closest?.('[data-help-open], [data-help-dialog], [data-leaderboard-open], [data-leaderboard-dialog], [data-submit-score]')) return;
         const action = KEY_ACTIONS[event.code];
         if (!action) return;
 

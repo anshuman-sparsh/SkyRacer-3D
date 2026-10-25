@@ -115,6 +115,27 @@
       .help-dialog__sections { grid-template-columns: 1fr; }
       .help-dialog__section { padding: 10px 12px; }
     }
+    .leaderboard-open { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(61px, calc(env(safe-area-inset-bottom) + 44px)); z-index: 4; padding: 0 12px; min-height: 35px; border: 1px solid rgba(255, 63, 164, .5); border-radius: 999px; background: rgba(17, 10, 38, .86); color: #ffe9f6; font: 750 11px/1 ui-monospace, Consolas, monospace; cursor: pointer; }
+    .leaderboard-open:hover { border-color: var(--magenta); background: rgba(40, 26, 73, .94); }
+    .leaderboard-open:focus-visible, .leaderboard-refresh:focus-visible, .leaderboard-nickname:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
+    .leaderboard-open[hidden], .leaderboard-form[hidden] { display: none; }
+    .leaderboard-list { margin: 14px 0; padding: 0; list-style: none; display: grid; gap: 5px; }
+    .leaderboard-list__row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid rgba(94, 240, 255, .13); border-radius: 8px; background: rgba(94, 240, 255, .035); font-size: 12px; }
+    .leaderboard-list__rank { color: #ff92c8; font-weight: 750; }
+    .leaderboard-list__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .leaderboard-list__score { color: var(--neon); font: 750 12px/1 ui-monospace, Consolas, monospace; }
+    .leaderboard-status { margin: 12px 0; color: #dfd7ee; font-size: 12px; line-height: 1.5; }
+    .leaderboard-own { color: var(--neon); font-size: 12px; font-weight: 700; }
+    .leaderboard-form { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(94, 240, 255, .2); }
+    .leaderboard-form label { display: block; margin-bottom: 7px; color: #ff92c8; font-weight: 700; font-size: 12px; }
+    .leaderboard-form__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .leaderboard-nickname { flex: 1; min-width: 140px; padding: 11px; border: 1px solid rgba(94, 240, 255, .4); border-radius: 8px; background: rgba(4, 2, 15, .7); color: #fff; font: 650 13px/1.2 ui-monospace, Consolas, monospace; }
+    .leaderboard-refresh { padding: 8px 12px; border: 1px solid var(--edge); border-radius: 8px; background: transparent; color: var(--neon); cursor: pointer; }
+    .leaderboard-send { padding: 11px 15px; border: 1px solid var(--magenta); border-radius: 8px; background: rgba(255, 63, 164, .25); color: #fff; font-weight: 750; cursor: pointer; }
+    .leaderboard-send:disabled, .leaderboard-refresh:disabled { opacity: .5; cursor: wait; }
+    @media (max-width: 767px) {
+      .leaderboard-open { left: max(12px, env(safe-area-inset-left)); bottom: max(107px, calc(env(safe-area-inset-bottom) + 99px)); min-height: 32px; font-size: 10px; padding: 0 10px; }
+    }
     @keyframes state-pulse { 50% { opacity: .62; } }
     @keyframes speed-streak { to { background-position-y: 42px, 42px; } }
     @keyframes ring-confirm { 35% { color: #fff; transform: scale(1.35); text-shadow: 0 0 18px #fff; } }
@@ -197,6 +218,7 @@
         <p class="state-overlay__best" data-overlay-best-rings>Best Rings <strong data-overlay-best-rings-value>0</strong></p>
       </div>
       <button class="state-overlay__action" type="button" data-restart hidden>RESTART</button>
+      <button class="state-overlay__action" type="button" data-submit-score hidden>SUBMIT SCORE</button>
     </div>
   </div>
   <button class="help-open" type="button" data-help-open aria-haspopup="dialog" aria-controls="how-to-play-dialog">? HOW TO PLAY</button>
@@ -227,7 +249,7 @@
       <section class="help-dialog__section">
         <h3>Aim, score, and energy</h3>
         <p><strong>Green aim marker:</strong> Your current flight path is lined up with a ring. Keep steering carefully.</p>
-        <p><strong>Score:</strong> Get points for distance and collecting rings. Your best records are saved on this device.</p>
+        <p><strong>Score:</strong> Get 10 points per world unit travelled and 50 per ring. Your best local records stay on this device.</p>
         <p><strong>Energy Boost bar:</strong> Shows the time left on a blue ring's automatic boost. Holding BOOST is separate.</p>
       </section>
       <section class="help-dialog__section">
@@ -237,6 +259,27 @@
       </section>
     </div>
     <p class="help-dialog__note">Opening this guide during a run pauses the game. Close it, then choose Resume to keep flying.</p>
+  </dialog>
+  <button class="leaderboard-open" type="button" data-leaderboard-open aria-haspopup="dialog" aria-controls="leaderboard-dialog" hidden>🏆 LEADERBOARD</button>
+  <dialog class="help-dialog leaderboard-dialog" id="leaderboard-dialog" data-leaderboard-dialog aria-labelledby="leaderboard-title">
+    <div class="help-dialog__head">
+      <h2 class="help-dialog__title" id="leaderboard-title">GLOBAL LEADERBOARD</h2>
+      <button class="help-close" type="button" data-leaderboard-close aria-label="Close leaderboard">×</button>
+    </div>
+    <p class="help-dialog__intro">Top 50 pilots — all-time scores. Each pilot appears once with their personal best.</p>
+    <p class="leaderboard-own" data-leaderboard-own></p>
+    <p class="leaderboard-status" data-leaderboard-status role="status" aria-live="polite">Open the leaderboard to see global records.</p>
+    <ol class="leaderboard-list" data-leaderboard-list aria-label="Top pilots"></ol>
+    <button type="button" class="leaderboard-refresh" data-leaderboard-refresh>Refresh rankings</button>
+    <div class="leaderboard-form" data-leaderboard-form hidden>
+      <label for="leaderboard-nickname">Your pilot nickname (3–16 letters, numbers or underscores)</label>
+      <div class="leaderboard-form__row">
+        <input id="leaderboard-nickname" class="leaderboard-nickname" data-leaderboard-nickname type="text" minlength="3" maxlength="16" pattern="[A-Za-z0-9_]{3,16}" autocomplete="nickname" placeholder="SkyPilot" />
+        <button class="leaderboard-send" type="button" data-leaderboard-send>Submit this run</button>
+      </div>
+      <p class="help-dialog__note">Only scores from newly completed, registered runs can enter the global leaderboard.</p>
+    </div>
+    <p class="help-dialog__note">Opening this panel pauses your flight. Close it and press Resume when you are ready.</p>
   </dialog>
   <script type="module" src="/src/main.js"></script>
 </body>

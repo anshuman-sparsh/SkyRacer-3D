@@ -1,0 +1,5 @@
+# Local Supabase CLI settings; this is not a production project reference.
+project_id = "skyracer-3d"
+
+[functions.leaderboard]
+verify_jwt = true

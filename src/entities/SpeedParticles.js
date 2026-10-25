@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createPointTexture } from '../utils/PointTexture.js';
 
 export class SpeedParticles extends THREE.Points {
     constructor({ count = 180, random = Math.random } = {}) {
@@ -6,6 +7,8 @@ export class SpeedParticles extends THREE.Points {
         const positions = new Float32Array(particleCount * 3);
         const geometry = new THREE.BufferGeometry();
         const material = new THREE.PointsMaterial({
+            map: createPointTexture(),
+            alphaTest: 0.01,
             color: 0xb8fff2,
             size: 0.075,
             transparent: true,
@@ -82,6 +85,7 @@ export class SpeedParticles extends THREE.Points {
 
     dispose() {
         this.geometry.dispose();
+        this.material.map.dispose();
         this.material.dispose();
     }
 

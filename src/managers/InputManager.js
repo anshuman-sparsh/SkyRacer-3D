@@ -61,6 +61,9 @@ export class InputManager {
         this.handlePointerEnd = (event) => this.#onPointerEnd(event);
         this.handleBoostPress = (event) => this.#onBoostPress(event);
         this.handleBoostRelease = (event) => this.#onBoostRelease(event);
+        // A held BOOST is a game control, not a request to select its label
+        // or open the mobile browser's text editing / context menu.
+        this.handleBoostSelection = (event) => event.preventDefault();
 
         if (this.touchSurface) {
             this.touchSurface.addEventListener('pointerdown', this.handlePointerDown);
@@ -75,6 +78,8 @@ export class InputManager {
             this.boostButton.addEventListener('pointerup', this.handleBoostRelease);
             this.boostButton.addEventListener('pointercancel', this.handleBoostRelease);
             this.boostButton.addEventListener('lostpointercapture', this.handleBoostRelease);
+            this.boostButton.addEventListener('contextmenu', this.handleBoostSelection);
+            this.boostButton.addEventListener('selectstart', this.handleBoostSelection);
         }
     }
 
@@ -237,6 +242,8 @@ export class InputManager {
             this.boostButton.removeEventListener('pointerup', this.handleBoostRelease);
             this.boostButton.removeEventListener('pointercancel', this.handleBoostRelease);
             this.boostButton.removeEventListener('lostpointercapture', this.handleBoostRelease);
+            this.boostButton.removeEventListener('contextmenu', this.handleBoostSelection);
+            this.boostButton.removeEventListener('selectstart', this.handleBoostSelection);
         }
 
         this.reset();

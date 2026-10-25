@@ -87,7 +87,7 @@ export class TrackManager {
             const obstacle = this.obstacles[index];
             obstacle.update(delta);
 
-            if (!hovercraft.isSpinningOut && obstacle.intersects(craftBox)) {
+            if (!hovercraft.isSpinningOut && obstacle.intersects(craftBox, hovercraft.collisionBoxes)) {
                 // Stop on the first intersection. No second impact, near-miss, or
                 // course-spawn work can occur during this terminal frame.
                 collided = true;

@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 
 const SKY_COLOR = 0x0b0620;
-const FOG_DENSITY = 0.0145;
+// Let rings and obstacles remain readable a little earlier, while distant
+// noninteractive silhouettes still blend softly into the dark horizon.
+const FOG_DENSITY = 0.013;
 
 /**
  * Procedural starfield built from a single BufferGeometry point cloud. No texture
@@ -15,10 +17,10 @@ class StarField extends THREE.Points {
         const geometry = new THREE.BufferGeometry();
         const material = new THREE.PointsMaterial({
             color: 0xd9c8ff,
-            size: 0.5,
+            size: 0.42,
             sizeAttenuation: true,
             transparent: true,
-            opacity: 0.85,
+            opacity: 0.77,
             depthWrite: false,
         });
 

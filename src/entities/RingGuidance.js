@@ -14,16 +14,33 @@ export class RingGuidance extends THREE.Group {
         this.target = null;
         this.futurePosition = new THREE.Vector3();
 
-        const markerGeometry = new THREE.TorusGeometry(0.18, 0.028, 4, 12);
-        const dotGeometry = new THREE.SphereGeometry(0.055, 6, 4);
-        this.markerMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffd07b, transparent: true, opacity: 0.85,
-            depthWrite: false, fog: true,
+        // The earlier tiny torus and dot looked too much like speed particles.
+        // A filled dark diamond behind a crisp coloured diamond outline keeps
+        // guidance legible at boost speeds without increasing particle effects.
+        const backingGeometry = new THREE.CircleGeometry(0.43, 4);
+        const markerGeometry = new THREE.RingGeometry(0.3, 0.39, 4);
+        const dotGeometry = new THREE.SphereGeometry(0.075, 6, 4);
+        this.backingMaterial = new THREE.MeshBasicMaterial({
+            color: 0x07131c, transparent: true, opacity: 0.92,
+            depthWrite: false, fog: false,
         });
-        this.dotMaterial = this.markerMaterial.clone();
+        this.markerMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffd07b, transparent: true, opacity: 0.98,
+            depthWrite: false, fog: false,
+        });
+        this.dotMaterial = new THREE.MeshBasicMaterial({
+            color: 0xf5fbff, depthWrite: false, fog: false,
+        });
         this.marker = new THREE.Mesh(markerGeometry, this.markerMaterial);
+        this.backing = new THREE.Mesh(backingGeometry, this.backingMaterial);
+        this.backing.position.z = -0.012;
         this.dot = new THREE.Mesh(dotGeometry, this.dotMaterial);
-        this.marker.add(this.dot);
+        // Speed particles don't write depth: draw this translucent marker after
+        // them, but keep normal depth testing against actual track geometry.
+        this.backing.renderOrder = 10;
+        this.marker.renderOrder = 11;
+        this.dot.renderOrder = 12;
+        this.marker.add(this.backing, this.dot);
         this.add(this.marker);
 
         // A faint vertical reference links only the selected ring to its
@@ -98,7 +115,6 @@ export class RingGuidance extends THREE.Group {
         );
         const color = aligned ? 0xc8ffad : 0xffd07b;
         this.markerMaterial.color.setHex(color);
-        this.dotMaterial.color.setHex(color);
         this.stem.scale.y = Math.max(0, nearest.position.y - 0.015);
     }
 
@@ -111,8 +127,10 @@ export class RingGuidance extends THREE.Group {
     dispose() {
         this.hide();
         this.marker.geometry.dispose();
+        this.backing.geometry.dispose();
         this.dot.geometry.dispose();
         this.stem.geometry.dispose();
+        this.backingMaterial.dispose();
         this.markerMaterial.dispose();
         this.dotMaterial.dispose();
         this.stemMaterial.dispose();

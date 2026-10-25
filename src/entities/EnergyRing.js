@@ -67,7 +67,7 @@ export class EnergyRing extends THREE.Group {
         this.groundAnchor = new GroundAnchor({
             radius: radius * 0.88,
             color: isSurge ? 0xffc44f : ringColor,
-            opacity: isSurge ? 0.32 : 0.25,
+            opacity: isSurge ? 0.14 : 0.11,
         });
         this.add(this.groundAnchor);
     }
@@ -76,7 +76,8 @@ export class EnergyRing extends THREE.Group {
         this.elapsed += delta;
         const pulse = 0.5 + Math.sin(this.elapsed * 3.4) * 0.5;
         this.ringVisual.rotation.z += this.rotationSpeed * delta;
-        this.ringVisual.rotation.y += this.rotationSpeed * 0.22 * delta;
+        // Keep the opening square to the flight path. Yaw made the visible
+        // aperture disagree with the fixed Stage A collection volume.
         const hue = this.isSurge ? 0.91 + pulse * 0.05 : 0.47 + pulse * 0.04;
         this.material.emissive.setHSL(hue, 0.98, 0.44 + pulse * 0.09);
         this.material.emissiveIntensity = (this.isSurge ? 1.08 : 0.78) + pulse * 0.82;

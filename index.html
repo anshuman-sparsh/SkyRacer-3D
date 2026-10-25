@@ -50,6 +50,7 @@
     .telemetry__row { display: grid; grid-template-columns: 1fr auto; gap: clamp(5px, .8vw, 10px); }
     .rings-panel { min-width: 68px; padding: clamp(6px, .9vh, 9px) clamp(8px, 1vw, 12px); text-align: center; }
     .rings-panel__value { display: block; margin-top: 3px; color: var(--magenta); font-size: clamp(15px, 1.9vw, 21px); font-weight: 800; line-height: 1; text-shadow: 0 0 14px rgba(255, 63, 164, .55); }
+    .rings-panel__value.is-collected { animation: ring-confirm 380ms ease-out; }
     .rings-panel__best { display: flex; justify-content: center; gap: 4px; margin-top: 4px; color: #a99fd0; font-size: clamp(7px, .8vw, 8px); font-weight: 700; text-transform: uppercase; }
     .rings-panel__best strong { color: var(--neon); }
     .rings-panel__best.is-record strong { color: var(--magenta); text-shadow: 0 0 10px rgba(255, 63, 164, .7); }
@@ -94,6 +95,7 @@
     .state-overlay__action:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
     @keyframes state-pulse { 50% { opacity: .62; } }
     @keyframes speed-streak { to { background-position-y: 42px, 42px; } }
+    @keyframes ring-confirm { 35% { color: #fff; transform: scale(1.35); text-shadow: 0 0 18px #fff; } }
     @media (hover: hover) and (pointer: fine) { .touch-controls { display: none; } }
     @media (max-width: 767px) {
       .glass-panel, .hud-button, .touch-hint, .touch-boost { backdrop-filter: none; }

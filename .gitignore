@@ -1,6 +1,4 @@
 node_modules/
 dist/
 vite-preview.log
-.clinerules
-.clinerules/
 .DS_Store

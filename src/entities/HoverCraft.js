@@ -87,7 +87,7 @@ export class HoverCraft extends THREE.Group {
 
         this.visual = new THREE.Group();
         this.add(this.visual);
-        this.groundAnchor = new GroundAnchor({ radius: 1.8, color: 0x62ffe6, opacity: 0.24 });
+        this.groundAnchor = new GroundAnchor({ radius: 1.8, color: 0x62ffe6, opacity: 0.1 });
         this.add(this.groundAnchor);
         this.engineGlows = [];
         this.engineTrails = [];

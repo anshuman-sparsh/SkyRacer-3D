@@ -6,6 +6,7 @@ import { createScene } from './core/Scene.js';
 import { disposeEnergyRingResources } from './entities/EnergyRing.js';
 import { disposeGroundAnchorResources } from './entities/GroundAnchor.js';
 import { HoverCraft } from './entities/HoverCraft.js';
+import { RingGuidance } from './entities/RingGuidance.js';
 import { disposeObstacleResources } from './entities/Obstacle.js';
 import { SpeedParticles } from './entities/SpeedParticles.js';
 import { disposeTrackSegmentResources } from './entities/TrackSegment.js';
@@ -33,10 +34,13 @@ const trackManager = new TrackManager(scene, {
     trackWidth: TRACK_WIDTH,
     craftBounds: hovercraft.bounds,
 });
+const ringGuidance = new RingGuidance();
 const scoreManager = new ScoreManager();
 const speedParticles = new SpeedParticles();
 const audioEngine = new AudioEngine();
 scene.add(hovercraft);
+scene.add(ringGuidance);
+hovercraft.groundAnchor.visible = true;
 scene.add(speedParticles);
 cameraDynamics.snapTo(hovercraft);
 
@@ -100,7 +104,7 @@ const isTouchPrimary = window.matchMedia('(pointer: coarse)').matches;
 const STATE_COPY = {
     start: [
         isTouchPrimary ? 'TAP TO START' : 'PRESS ANY KEY TO START',
-        'SKYRACER FLIGHT SYSTEM READY',
+        'FLY THROUGH RING CENTRES • GREEN MARKER = ALIGNED',
     ],
     paused: [
         'GAME PAUSED',
@@ -113,6 +117,7 @@ function setGameState(nextState) {
     gameState = nextState;
     const isRunning = nextState === 'running';
     const isTerminated = nextState === 'terminated';
+    if (!isRunning) ringGuidance.hide();
 
     stateOverlay.hidden = isRunning;
     inputManager.reset();
@@ -169,6 +174,7 @@ function togglePause() {
 
 /** Rebuilds the run in place, keeping every GPU resource and the audio context. */
 function restartRun() {
+    ringGuidance.hide();
     scoreManager.reset();
     hovercraft.reset();
     trackManager.reset();
@@ -333,6 +339,11 @@ function animate() {
                 cameraDynamics.addRingImpulse();
                 audioEngine.playRingChime();
             }
+            updateHud();
+            ringsElement.classList.remove('is-collected');
+            // Restart the short cue if two rings arrive close together.
+            void ringsElement.offsetWidth;
+            ringsElement.classList.add('is-collected');
         }
 
         // A single obstacle overlap still ends the session immediately.
@@ -360,6 +371,7 @@ function animate() {
             wasBoosting = hasSpeedFx;
 
             cameraDynamics.update(delta, hovercraft, isBoosting, isSurging);
+            ringGuidance.update(trackManager.energyRings, hovercraft);
             const liveForwardSpeed = Math.max(0, -hovercraft.velocity.z);
             speedParticles.update(delta, camera, liveForwardSpeed, hasSpeedFx);
             audioEngine.update(liveForwardSpeed, hasSpeedFx);
@@ -413,6 +425,8 @@ function disposeApp() {
     pauseButton.removeEventListener('click', togglePause);
     restartButton.removeEventListener('click', restartRun);
     inputManager.destroy();
+    ringGuidance.dispose();
+    scene.remove(ringGuidance);
     trackManager.destroy();
     disposeTrackSegmentResources();
     disposeEnergyRingResources();

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 const SKY_COLOR = 0x0b0620;
 // Let rings and obstacles remain readable a little earlier, while distant
 // noninteractive silhouettes still blend softly into the dark horizon.
-const FOG_DENSITY = 0.013;
+const FOG_DENSITY = 0.0128;
 
 /**
  * Procedural starfield built from a single BufferGeometry point cloud. No texture
@@ -63,7 +63,7 @@ class StarField extends THREE.Points {
     }
 }
 
-export function createScene() {
+export function createScene({ reducedScenery = false } = {}) {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(SKY_COLOR);
     // Exponential falloff gives close course objects strong contrast while rings
@@ -83,7 +83,8 @@ export function createScene() {
     rimLight.position.set(-9, 6, -12);
     scene.add(rimLight);
 
-    const starField = new StarField();
+    // Background-only detail reduction; rings, barriers and markers unchanged.
+    const starField = new StarField({ count: reducedScenery ? 1600 : 2600 });
     scene.add(starField);
 
     return { scene, starField };

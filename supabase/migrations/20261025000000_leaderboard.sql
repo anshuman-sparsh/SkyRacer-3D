@@ -113,3 +113,13 @@ revoke all on function public.accept_leaderboard_result(uuid, uuid, text, intege
   from public, anon, authenticated;
 grant execute on function public.accept_leaderboard_result(uuid, uuid, text, integer, integer, numeric)
   to service_role;
+
+-- The optional automatic-RLS event trigger must not be executable through the Data API.
+-- Event triggers continue to run on DDL without these API privileges.
+do $$
+begin
+  if to_regprocedure('public.rls_auto_enable()') is not null then
+    revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
+  end if;
+end;
+$$;

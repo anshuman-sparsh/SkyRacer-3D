@@ -60,3 +60,43 @@ test('failed score submissions are not saved as successful', async () => {
     }), /Score rejected/);
     assert.equal(service.getNickname(), '');
 });
+
+test('returning account uses its server-registered permanent nickname', async () => {
+    const store = storage();
+    store.setItem('skyracer_lb_nickname_v1', 'OldBrowserName');
+    const calls = [];
+    const service = new LeaderboardService({
+        url: 'https://game.supabase.co', publishableKey: 'public', storage: store,
+        fetchImpl: async (url, init) => {
+            calls.push({ url, method: init.method });
+            if (url.endsWith('/signup')) {
+                return json({ access_token: 'jwt', refresh_token: 'refresh', expires_in: 3600 });
+            }
+            return json({
+                entries: [{ rank: 1, nickname: 'Doom', score: 500 }],
+                me: { rank: 1, nickname: 'Doom', score: 500, rings: 2 },
+            });
+        },
+    });
+
+    const result = await service.getLeaderboard();
+    assert.equal(result.me.nickname, 'Doom');
+    assert.equal(service.getNickname(), 'Doom');
+    assert.equal(calls.filter((call) => call.method === 'GET').length, 1);
+});
+
+test('rejected nickname conflict does not overwrite previously registered nickname', async () => {
+    const store = storage();
+    store.setItem('skyracer_lb_nickname_v1', 'Doom');
+    const service = new LeaderboardService({
+        url: 'https://game.supabase.co', publishableKey: 'public', storage: store,
+        fetchImpl: async (url) => url.endsWith('/signup')
+            ? json({ access_token: 'jwt', refresh_token: 'refresh', expires_in: 3600 })
+            : json({ error: 'That nickname is already taken.' }, 409),
+    });
+
+    await assert.rejects(() => service.finishRun({
+        runId: 'another-run', nickname: 'RazorPaw', score: 1000, rings: 5, distance: 75,
+    }), /already taken/);
+    assert.equal(service.getNickname(), 'Doom');
+});

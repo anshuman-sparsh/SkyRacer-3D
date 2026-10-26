@@ -101,6 +101,7 @@ const leaderboardOwn = document.querySelector('[data-leaderboard-own]');
 const leaderboardList = document.querySelector('[data-leaderboard-list]');
 const leaderboardForm = document.querySelector('[data-leaderboard-form]');
 const leaderboardNickname = document.querySelector('[data-leaderboard-nickname]');
+const leaderboardNicknameLabel = document.querySelector('[data-leaderboard-nickname-label]');
 const leaderboardSendButton = document.querySelector('[data-leaderboard-send]');
 const scoreSubmitButton = document.querySelector('[data-submit-score]');
 const touchIndicator = document.querySelector('[data-touch-indicator]');
@@ -322,6 +323,8 @@ function openLeaderboard(event) {
     if (gameState === 'running') setGameState('paused');
     leaderboardForm.hidden = gameState !== 'terminated' || onlineSubmitted;
     leaderboardNickname.value = leaderboard.getNickname();
+    leaderboardNickname.readOnly = false;
+    leaderboardNicknameLabel.textContent = 'Your pilot nickname (3–16 letters, numbers or underscores)';
     leaderboardDialog.showModal();
     leaderboardCloseButton.focus();
     void refreshLeaderboard();
@@ -363,9 +366,28 @@ async function refreshLeaderboard() {
         leaderboardOwn.textContent = response?.me
             ? `Your rank: #${response.me.rank} · Best: ${Number(response.me.score).toLocaleString()}`
             : 'Play a run to earn your first global ranking.';
-        leaderboardStatus.textContent = entries.length
-            ? 'All-time global scores (50 points per ring).'
-            : 'No global scores yet. Be the first!';
+
+        // The server is authoritative: returning players must retain their
+        // first registered nickname, and only strictly better runs can submit.
+        const registeredName = typeof response?.me?.nickname === 'string'
+            ? response.me.nickname : null;
+        leaderboardNickname.readOnly = Boolean(registeredName);
+        if (registeredName) leaderboardNickname.value = registeredName;
+        leaderboardNicknameLabel.textContent = registeredName
+            ? 'Your registered nickname (permanent)'
+            : 'Your pilot nickname (3–16 letters, numbers or underscores)';
+
+        const previousBest = response?.me ? Number(response.me.score) : null;
+        const beatsPreviousBest = previousBest === null
+            || scoreManager.currentScore > previousBest;
+        const canSubmit = gameState === 'terminated' && !onlineSubmitted && beatsPreviousBest;
+        leaderboardForm.hidden = !canSubmit;
+        scoreSubmitButton.hidden = !canSubmit || !leaderboard.enabled;
+        leaderboardStatus.textContent = !beatsPreviousBest && gameState === 'terminated'
+            ? `Your score must beat ${previousBest.toLocaleString()} points before you can submit again.`
+            : entries.length
+                ? 'All-time global scores (50 points per ring).'
+                : 'No global scores yet. Be the first!';
     } catch (error) {
         leaderboardStatus.textContent = `Could not load rankings: ${error.message}`;
     } finally {
@@ -385,6 +407,19 @@ async function submitOnlineScore() {
     leaderboardStatus.textContent = 'Checking and submitting your run…';
     const runRegistration = onlineRunPromise;
     try {
+        // Recheck the latest server record immediately before submitting.
+        // Local high scores are not a reliable proxy for the online account.
+        const snapshot = await leaderboard.getLeaderboard();
+        const registeredName = typeof snapshot?.me?.nickname === 'string'
+            ? snapshot.me.nickname : null;
+        if (registeredName && nickname !== registeredName) {
+            throw new Error(`Your registered nickname is ${registeredName}. It cannot be changed.`);
+        }
+        const previousBest = snapshot?.me ? Number(snapshot.me.score) : null;
+        if (previousBest !== null && scoreManager.currentScore <= previousBest) {
+            throw new Error(`You must beat your personal best of ${previousBest.toLocaleString()} points.`);
+        }
+
         const runId = await runRegistration;
         if (!runId || runRegistration !== onlineRunPromise) {
             throw new Error('This run was not registered online. Please play another run while connected.');
@@ -401,9 +436,7 @@ async function submitOnlineScore() {
         leaderboardForm.hidden = true;
         scoreSubmitButton.hidden = true;
         await refreshLeaderboard();
-        leaderboardStatus.textContent = result.isNewPersonalBest
-            ? 'New global personal best! Your score is on the leaderboard.'
-            : 'Score submitted! Your previous higher record is still your best.';
+        leaderboardStatus.textContent = 'New global personal best! Your score is on the leaderboard.';
     } catch (error) {
         leaderboardStatus.textContent = `Could not submit: ${error.message}`;
     } finally {

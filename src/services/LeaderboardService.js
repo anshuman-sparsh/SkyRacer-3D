@@ -138,7 +138,13 @@ export class LeaderboardService {
 
     async getLeaderboard() {
         if (!this.enabled) return { entries: [], me: null };
-        return this.#request('GET');
+        const response = await this.#request('GET');
+        // Always prefer the server's immutable registered nickname over an
+        // outdated value in localStorage for this browser session.
+        if (typeof response?.me?.nickname === 'string') {
+            this.#save(NAME_KEY, response.me.nickname);
+        }
+        return response;
     }
 
     getNickname() {

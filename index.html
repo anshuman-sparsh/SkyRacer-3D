@@ -135,6 +135,7 @@
     .leaderboard-form label { display: block; margin-bottom: 7px; color: #ff92c8; font-weight: 700; font-size: 12px; }
     .leaderboard-form__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .leaderboard-nickname { flex: 1; min-width: 140px; padding: 11px; border: 1px solid rgba(94, 240, 255, .4); border-radius: 8px; background: rgba(4, 2, 15, .7); color: #fff; font: 650 13px/1.2 ui-monospace, Consolas, monospace; }
+    .leaderboard-nickname[readonly] { border-color: rgba(94, 240, 255, .18); background: rgba(94, 240, 255, .055); color: var(--neon); cursor: not-allowed; }
     .leaderboard-refresh { padding: 8px 12px; border: 1px solid var(--edge); border-radius: 8px; background: transparent; color: var(--neon); cursor: pointer; }
     .leaderboard-send { padding: 11px 15px; border: 1px solid var(--magenta); border-radius: 8px; background: rgba(255, 63, 164, .25); color: #fff; font-weight: 750; cursor: pointer; }
     .leaderboard-send:disabled, .leaderboard-refresh:disabled { opacity: .5; cursor: wait; }
@@ -286,7 +287,7 @@
     <ol class="leaderboard-list" data-leaderboard-list aria-label="Top pilots"></ol>
     <button type="button" class="leaderboard-refresh" data-leaderboard-refresh>Refresh rankings</button>
     <div class="leaderboard-form" data-leaderboard-form hidden>
-      <label for="leaderboard-nickname">Your pilot nickname (3–16 letters, numbers or underscores)</label>
+      <label for="leaderboard-nickname" data-leaderboard-nickname-label>Your pilot nickname (3–16 letters, numbers or underscores)</label>
       <div class="leaderboard-form__row">
         <input id="leaderboard-nickname" class="leaderboard-nickname" data-leaderboard-nickname type="text" minlength="3" maxlength="16" pattern="[A-Za-z0-9_]{3,16}" autocomplete="nickname" placeholder="SkyPilot" />
         <button class="leaderboard-send" type="button" data-leaderboard-send>Submit this run</button>

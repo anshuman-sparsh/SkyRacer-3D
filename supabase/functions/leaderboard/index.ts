@@ -64,6 +64,14 @@ export default {
         .maybeSingle();
       if (mineError) return invalid('Your ranking is temporarily unavailable.', 503);
 
+      // The server's registered nickname is authoritative for returning players.
+      const { data: profile, error: profileError } = await ctx.supabaseAdmin
+        .from('player_profiles')
+        .select('nickname')
+        .eq('user_id', playerId)
+        .maybeSingle();
+      if (profileError) return invalid('Player profile is temporarily unavailable.', 503);
+
       let ownRank: number | null = null;
       if (mine) {
         const { count, error: countError } = await ctx.supabaseAdmin
@@ -73,7 +81,7 @@ export default {
         if (countError) return invalid('Your ranking is temporarily unavailable.', 503);
         ownRank = (count ?? 0) + 1;
       }
-      return Response.json({ entries, me: mine ? { ...mine, rank: ownRank } : null });
+      return Response.json({ entries, me: mine ? { ...mine, rank: ownRank, nickname: profile?.nickname ?? null } : null });
     }
 
     if (request.method !== 'POST') return invalid('Method not allowed.', 405);
@@ -120,6 +128,20 @@ export default {
       if (runError) return invalid('Could not verify this run.', 503);
       if (!run || run.submitted_at || run.score_version !== 2) return invalid('Run already submitted or unavailable.', 409);
 
+      // Friendly errors here; the RPC enforces both rules again atomically.
+      const { data: registered, error: registeredError } = await ctx.supabaseAdmin
+        .from('player_profiles').select('nickname').eq('user_id', playerId).maybeSingle();
+      if (registeredError) return invalid('Could not check your registered nickname.', 503);
+      if (registered && registered.nickname !== nickname) {
+        return invalid(`This account is registered as ${registered.nickname}. Use your original nickname.`, 409);
+      }
+      const { data: best, error: bestError } = await ctx.supabaseAdmin
+        .from('best_scores').select('score').eq('user_id', playerId).maybeSingle();
+      if (bestError) return invalid('Could not check your personal best.', 503);
+      if (best && (body.score as number) <= best.score) {
+        return invalid(`Only a new personal best can be submitted. Beat ${best.score.toLocaleString()} points.`, 409);
+      }
+
       const elapsedSeconds = (Date.now() - new Date(run.started_at).getTime()) / 1000;
       if (!plausibleScore(body.score, body.distance, body.rings, elapsedSeconds)) {
         return invalid('The run could not be validated.');
@@ -144,10 +166,21 @@ export default {
         p_rings: body.rings,
         p_distance: body.distance,
       });
-      if (error) return invalid('This run was already submitted or could not be saved.', 409);
+      if (error) {
+        if (error.code === '23505' || error.message?.includes('player_profiles_nickname_ci_unique')) {
+          return invalid('That nickname is already taken. Please choose another.', 409);
+        }
+        if (error.message?.includes('NICKNAME_LOCKED')) {
+          return invalid('Your nickname is permanently registered. Use the same nickname.', 409);
+        }
+        if (error.message?.includes('PERSONAL_BEST_NOT_BEATEN')) {
+          return invalid('Your score must be higher than your previous personal best.', 409);
+        }
+        return invalid('This run was already submitted or could not be saved.', 409);
+      }
       return Response.json({
         accepted: true,
-        isNewPersonalBest: Boolean(data?.[0]?.is_record),
+        isNewPersonalBest: true,
         personalBest: data?.[0]?.personal_best ?? body.score,
       });
     }

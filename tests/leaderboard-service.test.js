@@ -100,3 +100,52 @@ test('rejected nickname conflict does not overwrite previously registered nickna
     }), /already taken/);
     assert.equal(service.getNickname(), 'Doom');
 });
+
+test('score submission carries a Vercel-signed country proof for its run', async () => {
+    const runId = '12345678-1234-4234-8234-123456789abc';
+    const proof = `v1.${runId}.IN.1793000000.${'a'.repeat(64)}`;
+    const calls = [];
+    const service = new LeaderboardService({
+        url: 'https://game.supabase.co', publishableKey: 'public', storage: storage(),
+        fetchImpl: async (url, init) => {
+            const body = init?.body ? JSON.parse(init.body) : null;
+            calls.push({ url, body });
+            if (url.endsWith('/signup')) {
+                return json({ access_token: 'jwt', refresh_token: 'refresh', expires_in: 3600 });
+            }
+            if (url === '/api/country') {
+                assert.equal(body.runId, runId);
+                return json({ proof });
+            }
+            return json({ accepted: true, personalBest: 500 });
+        },
+    });
+
+    await service.finishRun({ runId, nickname: 'Pilot', score: 500, rings: 1, distance: 45 });
+    assert.equal(calls.filter((call) => call.url === '/api/country').length, 1);
+    assert.equal(calls.find((call) => call.body?.action === 'finish')?.body.countryProof, proof);
+});
+
+test('a missing geolocation route does not interrupt score submission', async () => {
+    const calls = [];
+    const service = new LeaderboardService({
+        url: 'https://game.supabase.co', publishableKey: 'public', storage: storage(),
+        fetchImpl: async (url, init) => {
+            if (url === '/api/country') throw new Error('No Vercel Function on localhost');
+            if (url.endsWith('/signup')) {
+                return json({ access_token: 'jwt', refresh_token: 'refresh', expires_in: 3600 });
+            }
+            const body = init?.body ? JSON.parse(init.body) : null;
+            if (body?.action === 'finish') calls.push(body);
+            return json({ accepted: true, personalBest: 350 });
+        },
+    });
+
+    const result = await service.finishRun({
+        runId: '12345678-1234-4234-8234-123456789abc',
+        nickname: 'SkyPilot', score: 350, rings: 3, distance: 20,
+    });
+    assert.equal(result.accepted, true);
+    assert.equal(calls.length, 1);
+    assert.equal('countryProof' in calls[0], false);
+});

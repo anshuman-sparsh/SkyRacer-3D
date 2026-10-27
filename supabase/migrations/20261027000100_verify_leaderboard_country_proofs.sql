@@ -32,7 +32,7 @@ begin
   end if;
 
   v_issued_seconds := v_match[3]::bigint;
-  v_now_seconds := pg_catalog.extract(epoch from pg_catalog.clock_timestamp())::bigint;
+  v_now_seconds := extract(epoch from pg_catalog.clock_timestamp())::bigint;
   -- Proof lasts 5 minutes, allowing at most 30 seconds of clock skew.
   if v_issued_seconds > v_now_seconds + 30
      or v_now_seconds - v_issued_seconds > 300 then

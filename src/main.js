@@ -17,6 +17,7 @@ import { InputManager } from './managers/InputManager.js';
 import { ScoreManager } from './managers/ScoreManager.js';
 import { RingCollectionDeadline } from './managers/RingCollectionDeadline.js';
 import { LeaderboardService } from './services/LeaderboardService.js';
+import { formatLeaderboardName } from './utils/LeaderboardDisplay.js';
 import { TrackManager } from './managers/TrackManager.js';
 import { AudioEngine } from './utils/AudioEngine.js';
 import { disposeObject3D } from './utils/Memory.js';
@@ -355,7 +356,7 @@ async function refreshLeaderboard() {
             rank.textContent = `#${Number(entry.rank)}`;
             const name = document.createElement('span');
             name.className = 'leaderboard-list__name';
-            name.textContent = String(entry.nickname ?? 'Pilot');
+            name.textContent = formatLeaderboardName(entry);
             const points = document.createElement('strong');
             points.className = 'leaderboard-list__score';
             points.textContent = Number(entry.score).toLocaleString();

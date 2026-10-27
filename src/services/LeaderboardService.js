@@ -38,6 +38,9 @@ export class LeaderboardService {
         }
         this.authPromise = null;
         this.session = this.#loadSession();
+        // Avoid repeated optional geolocation requests for the same historical
+        // best score while the leaderboard is open or refreshed.
+        this.countryBackfillAttempts = new Set();
     }
 
     #read(key) {
@@ -128,9 +131,31 @@ export class LeaderboardService {
         return result.runId;
     }
 
+    async #getCountryProof(runId) {
+        // Ask our same-origin Vercel Function to sign the player's IP-derived
+        // country for this run. On localhost or unsupported networks the
+        // response has no proof; scoring remains fully operational.
+        try {
+            const response = await this.fetchImpl('/api/country', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ runId }),
+                cache: 'no-store',
+            });
+            if (!response.ok) return null;
+            const data = await response.json();
+            return typeof data?.proof === 'string' && data.proof.length <= 160
+                ? data.proof : null;
+        } catch {
+            return null;
+        }
+    }
+
     async finishRun({ runId, nickname, score, rings, distance }) {
+        const countryProof = await this.#getCountryProof(runId);
         const result = await this.#request('POST', {
             action: 'finish', runId, nickname, score, rings, distance,
+            ...(countryProof ? { countryProof } : {}),
         });
         if (result?.accepted) this.#save(NAME_KEY, nickname);
         return result;
@@ -138,7 +163,30 @@ export class LeaderboardService {
 
     async getLeaderboard() {
         if (!this.enabled) return { entries: [], me: null };
-        const response = await this.#request('GET');
+        let response = await this.#request('GET');
+
+        // Attach a verified country to an older existing personal best without
+        // demanding another run or a higher score. We can only attribute the
+        // player's country when their original browser account returns.
+        const oldBestRunId = response?.me?.runId;
+        if (typeof oldBestRunId === 'string'
+            && response.me.countryCode == null
+            && !this.countryBackfillAttempts.has(oldBestRunId)) {
+            this.countryBackfillAttempts.add(oldBestRunId);
+            const countryProof = await this.#getCountryProof(oldBestRunId);
+            if (countryProof) {
+                try {
+                    const result = await this.#request('POST', {
+                        action: 'backfill-country', runId: oldBestRunId, countryProof,
+                    });
+                    if (result?.updated) response = await this.#request('GET');
+                } catch {
+                    // Country is optional; a failed attribution must not hide
+                    // the leaderboard or stop a player from submitting scores.
+                }
+            }
+        }
+
         // Always prefer the server's immutable registered nickname over an
         // outdated value in localStorage for this browser session.
         if (typeof response?.me?.nickname === 'string') {

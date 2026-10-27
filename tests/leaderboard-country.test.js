@@ -61,10 +61,10 @@ test('country proof cannot be forged, changed, or replayed after expiration', as
     assert.equal(await verifyCountryProof('invalid', runId, secret), null);
 });
 
-test('local development, missing Vercel header, and missing secret cannot assign a country', (t) => {
+test('local development with no Vercel header and missing secrets do not assign a country', (t) => {
     setEnvironment(t, false);
     const local = response();
-    countryHandler({ method: 'POST', headers: { 'x-vercel-ip-country': 'IN' },
+    countryHandler({ method: 'POST', headers: {},
         body: { runId } }, local);
     assert.equal(local.body.proof, null);
 

@@ -128,9 +128,31 @@ export class LeaderboardService {
         return result.runId;
     }
 
+    async #getCountryProof(runId) {
+        // Ask our same-origin Vercel Function to sign the player's IP-derived
+        // country for this run. On localhost or unsupported networks the
+        // response has no proof; scoring remains fully operational.
+        try {
+            const response = await this.fetchImpl('/api/country', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ runId }),
+                cache: 'no-store',
+            });
+            if (!response.ok) return null;
+            const data = await response.json();
+            return typeof data?.proof === 'string' && data.proof.length <= 160
+                ? data.proof : null;
+        } catch {
+            return null;
+        }
+    }
+
     async finishRun({ runId, nickname, score, rings, distance }) {
+        const countryProof = await this.#getCountryProof(runId);
         const result = await this.#request('POST', {
             action: 'finish', runId, nickname, score, rings, distance,
+            ...(countryProof ? { countryProof } : {}),
         });
         if (result?.accepted) this.#save(NAME_KEY, nickname);
         return result;

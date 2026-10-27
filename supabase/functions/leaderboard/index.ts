@@ -61,7 +61,7 @@ export default {
       }));
       const { data: mine, error: mineError } = await ctx.supabaseAdmin
         .from('best_scores')
-        .select('score, rings')
+        .select('run_id, score, rings, country_code')
         .eq('user_id', playerId)
         .maybeSingle();
       if (mineError) return invalid('Your ranking is temporarily unavailable.', 503);
@@ -83,7 +83,19 @@ export default {
         if (countError) return invalid('Your ranking is temporarily unavailable.', 503);
         ownRank = (count ?? 0) + 1;
       }
-      return Response.json({ entries, me: mine ? { ...mine, rank: ownRank, nickname: profile?.nickname ?? null } : null });
+      return Response.json({
+        entries,
+        me: mine ? {
+          score: mine.score,
+          rings: mine.rings,
+          rank: ownRank,
+          nickname: profile?.nickname ?? null,
+          // This run ID is scoped to the authenticated player and is used only
+          // to backfill country for their own existing best score.
+          runId: mine.run_id,
+          countryCode: mine.country_code ?? null,
+        } : null,
+      });
     }
 
     if (request.method !== 'POST') return invalid('Method not allowed.', 405);
@@ -95,6 +107,48 @@ export default {
       body = parsed as Record<string, unknown>;
     } catch {
       return invalid('Invalid JSON.');
+    }
+
+    if (body.action === 'backfill-country') {
+      // The only way to add country to an old personal best is for its owner
+      // to revisit from a Vercel-geolocated connection. This is a present-day
+      // country attribution, not a reconstructed historical IP location.
+      if (typeof body.runId !== 'string' || !RUN_ID.test(body.runId)) {
+        return invalid('Invalid run ID.');
+      }
+
+      const { data: existing, error: lookupError } = await ctx.supabaseAdmin
+        .from('best_scores')
+        .select('run_id, country_code')
+        .eq('user_id', playerId)
+        .maybeSingle();
+      if (lookupError) return invalid('Could not check your leaderboard record.', 503);
+      if (!existing || existing.run_id !== body.runId) {
+        return invalid('No matching personal best belongs to this account.', 403);
+      }
+      if (existing.country_code) return Response.json({ updated: false });
+
+      let countryCode: string | null = null;
+      try {
+        countryCode = await verifyCountryProof(
+          body.countryProof, body.runId,
+          Deno.env.get('LEADERBOARD_GEO_SECRET') ?? '',
+        );
+      } catch {
+        // Missing geolocation must never alter the existing score.
+      }
+      if (!countryCode) return Response.json({ updated: false });
+
+      const { data: saved, error: updateError } = await ctx.supabaseAdmin
+        .from('best_scores')
+        .update({ country_code: countryCode })
+        .eq('user_id', playerId)
+        .eq('run_id', body.runId)
+        .is('country_code', null)
+        .select('run_id')
+        .maybeSingle();
+      if (updateError) return invalid('Could not update your country code.', 503);
+      return Response.json({ updated: Boolean(saved) });
     }
 
     if (body.action === 'start') {

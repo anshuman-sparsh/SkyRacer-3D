@@ -2,7 +2,6 @@
 // The auth wrapper verifies the caller's user JWT, including anonymous accounts,
 // and handles browser CORS automatically. Never expose supabaseAdmin in the app.
 import { withSupabase } from 'npm:@supabase/server@^1';
-import { verifyCountryProof } from './country-proof.js';
 
 const MAX_TOP = 50;
 const SCORE_PER_DISTANCE_UNIT = 10;
@@ -129,13 +128,14 @@ export default {
       if (existing.country_code) return Response.json({ updated: false });
 
       let countryCode: string | null = null;
-      try {
-        countryCode = await verifyCountryProof(
-          body.countryProof, body.runId,
-          Deno.env.get('LEADERBOARD_GEO_SECRET') ?? '',
-        );
-      } catch {
-        // Missing geolocation must never alter the existing score.
+      if (typeof body.countryProof === 'string') {
+        const { data: verifiedCountry, error: verificationError } = await ctx.supabaseAdmin
+          .rpc('verify_leaderboard_country_proof', {
+            p_run_id: body.runId, p_proof: body.countryProof,
+          });
+        if (!verificationError && typeof verifiedCountry === 'string') {
+          countryCode = verifiedCountry;
+        }
       }
       if (!countryCode) return Response.json({ updated: false });
 
@@ -238,13 +238,14 @@ export default {
       // Invalid/missing/expired proofs leave the field unknown (NULL); a
       // browser-supplied country code is never accepted as evidence.
       let countryCode: string | null = null;
-      try {
-        countryCode = await verifyCountryProof(
-          body.countryProof, body.runId,
-          Deno.env.get('LEADERBOARD_GEO_SECRET') ?? '',
-        );
-      } catch {
-        // Unavailable crypto or secret must not lose an accepted high score.
+      if (typeof body.countryProof === 'string') {
+        const { data: verifiedCountry, error: verificationError } = await ctx.supabaseAdmin
+          .rpc('verify_leaderboard_country_proof', {
+            p_run_id: body.runId, p_proof: body.countryProof,
+          });
+        if (!verificationError && typeof verifiedCountry === 'string') {
+          countryCode = verifiedCountry;
+        }
       }
       // Update the accepted best run only. A new best with no trusted geo
       // explicitly clears any older country rather than mislabeling its origin.

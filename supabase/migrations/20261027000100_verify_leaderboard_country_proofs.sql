@@ -25,7 +25,7 @@ begin
 
   v_match := pg_catalog.regexp_match(
     p_proof,
-    '^v1\\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\\.([A-Z]{2})\\.([0-9]{10})\\.([a-f0-9]{64})$'
+    '^v1\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.([A-Z]{2})\.([0-9]{10})\.([a-f0-9]{64})$'
   );
   if v_match is null or v_match[1] <> p_run_id::text then
     return null;

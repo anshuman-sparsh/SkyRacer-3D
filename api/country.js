@@ -38,7 +38,7 @@ export default function handler(request, response) {
     const rawCountry = request.headers['x-vercel-ip-country'];
     const countryCode = typeof rawCountry === 'string' ? rawCountry : '';
     const secret = process.env.LEADERBOARD_GEO_SECRET;
-    if (process.env.VERCEL !== '1' || !COUNTRY_CODE.test(countryCode)
+    if (!COUNTRY_CODE.test(countryCode)
         || typeof secret !== 'string' || secret.length < 32) {
         return response.status(200).json({ proof: null });
     }

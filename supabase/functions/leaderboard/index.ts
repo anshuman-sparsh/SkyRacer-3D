@@ -192,16 +192,16 @@ export default {
       } catch {
         // Unavailable crypto or secret must not lose an accepted high score.
       }
-      if (countryCode) {
-        const { error: countryError } = await ctx.supabaseAdmin
-          .from('best_scores')
-          .update({ country_code: countryCode })
-          .eq('user_id', playerId)
-          .eq('run_id', body.runId);
-        if (countryError) {
-          // Do not expose internal database details to the browser.
-          console.error('Could not save verified leaderboard country code.');
-        }
+      // Update the accepted best run only. A new best with no trusted geo
+      // explicitly clears any older country rather than mislabeling its origin.
+      const { error: countryError } = await ctx.supabaseAdmin
+        .from('best_scores')
+        .update({ country_code: countryCode })
+        .eq('user_id', playerId)
+        .eq('run_id', body.runId);
+      if (countryError) {
+        // Do not expose internal database details to the browser.
+        console.error('Could not save verified leaderboard country code.');
       }
       return Response.json({
         accepted: true,

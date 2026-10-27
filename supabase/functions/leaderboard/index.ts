@@ -2,6 +2,7 @@
 // The auth wrapper verifies the caller's user JWT, including anonymous accounts,
 // and handles browser CORS automatically. Never expose supabaseAdmin in the app.
 import { withSupabase } from 'npm:@supabase/server@^1';
+import { verifyCountryProof } from './country-proof.js';
 
 const MAX_TOP = 50;
 const SCORE_PER_DISTANCE_UNIT = 10;
@@ -44,7 +45,7 @@ export default {
     if (request.method === 'GET') {
       const { data, error } = await ctx.supabaseAdmin
         .from('best_scores')
-        .select('user_id, score, rings, achieved_at, player_profiles(nickname)')
+        .select('user_id, score, rings, country_code, achieved_at, player_profiles(nickname)')
         .order('score', { ascending: false })
         .order('achieved_at', { ascending: true })
         .limit(MAX_TOP);
@@ -53,6 +54,7 @@ export default {
       const entries = (data ?? []).map((item, index) => ({
         rank: index + 1,
         nickname: item.player_profiles?.nickname ?? 'Pilot',
+        countryCode: item.country_code ?? null,
         score: item.score,
         rings: item.rings,
         achieved_at: item.achieved_at,
@@ -177,6 +179,29 @@ export default {
           return invalid('Your score must be higher than your previous personal best.', 409);
         }
         return invalid('This run was already submitted or could not be saved.', 409);
+      }
+      // Only the proof signed by our Vercel Function can attribute a country.
+      // Invalid/missing/expired proofs leave the field unknown (NULL); a
+      // browser-supplied country code is never accepted as evidence.
+      let countryCode: string | null = null;
+      try {
+        countryCode = await verifyCountryProof(
+          body.countryProof, body.runId,
+          Deno.env.get('LEADERBOARD_GEO_SECRET') ?? '',
+        );
+      } catch {
+        // Unavailable crypto or secret must not lose an accepted high score.
+      }
+      if (countryCode) {
+        const { error: countryError } = await ctx.supabaseAdmin
+          .from('best_scores')
+          .update({ country_code: countryCode })
+          .eq('user_id', playerId)
+          .eq('run_id', body.runId);
+        if (countryError) {
+          // Do not expose internal database details to the browser.
+          console.error('Could not save verified leaderboard country code.');
+        }
       }
       return Response.json({
         accepted: true,

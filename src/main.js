@@ -209,7 +209,7 @@ function setGameState(nextState, terminationReason = 'collision') {
     gameState = nextState;
     if (nextState === 'terminated' && !wasTerminated) {
         analytics.trackRunEnd({
-            mode: 'classic',
+            mode: gameMode,
             score: scoreManager.currentScore,
             rings: scoreManager.ringsCollected,
             distance: scoreManager.distance,
@@ -228,7 +228,8 @@ function setGameState(nextState, terminationReason = 'collision') {
 
     stateStats.hidden = !isTerminated;
     restartButton.hidden = !isTerminated;
-    scoreSubmitButton.hidden = !isTerminated || !leaderboard.enabled || onlineSubmitted;
+    scoreSubmitButton.hidden = gameMode !== 'classic'
+        || !isTerminated || !leaderboard.enabled || onlineSubmitted;
     stateTitle.classList.toggle('is-alert', isTerminated);
     stateTitle.classList.toggle('is-pulsing', !isTerminated);
 
@@ -258,6 +259,18 @@ function setGameState(nextState, terminationReason = 'collision') {
         stateMessage.textContent = copy[1];
     }
 
+    updateModeDisplays();
+    if (isTerminated && gameMode === 'daily' && activeDailyRun
+        && !activeDailyRun.submitted && activeDailyRun.nickname
+        && scoreManager.currentScore > 0) {
+        // A server-registered nickname allows fully automatic daily submissions.
+        // New pilots choose their permanent nickname from the Daily panel.
+        void submitDailyScore(activeDailyRun.nickname).catch((error) => {
+            dailyLastError = error.message;
+            updateModeDisplays();
+        });
+    }
+
     if (!isRunning) {
         speedLinesElement.style.opacity = '0';
         speedLinesElement.classList.remove('is-active');
@@ -276,19 +289,42 @@ function beginOnlineRun() {
 }
 
 async function startRunning() {
-    // Avoid counting duplicate taps or key presses while audio is starting.
-    if (startTransitionPending || gameState === 'running') return;
+    // Ignore duplicate clicks and key presses during async run registration.
+    if (startTransitionPending || gameState === 'running') return false;
     startTransitionPending = true;
     const isNewRun = gameState === 'start' || gameState === 'terminated';
     try {
-        if (gameState === 'start') beginOnlineRun();
-        await audioEngine.start();
+        // Start audio while still handling the user's gesture on mobile.
+        const audioPromise = audioEngine.start();
+        if (isNewRun && gameMode === 'daily') {
+            if (!activeDailyRun || activeDailyRun.submitted) {
+                activeDailyRun = await dailyService.begin();
+            }
+            trackManager.reset({
+                random: createDailyRandom(activeDailyRun.date, activeDailyRun.courseVersion),
+            });
+            ringCollectionDeadline.reset();
+            scoreManager.reset();
+            hovercraft.reset();
+            cameraDynamics.snapTo(hovercraft);
+            dailyLastError = '';
+            updateHud();
+        } else if (gameState === 'start' && gameMode === 'classic') {
+            beginOnlineRun();
+        }
+        await audioPromise;
         setGameState('running');
         clock.getDelta();
         if (isNewRun) {
             activeRunSeconds = 0;
-            analytics.trackRunStart('classic');
+            analytics.trackRunStart(gameMode);
         }
+        return true;
+    } catch (error) {
+        dailyLastError = error.message;
+        updateModeDisplays();
+        console.error('[SkyRacer] Could not start daily attempt:', error);
+        return false;
     } finally {
         startTransitionPending = false;
     }
@@ -310,10 +346,16 @@ function restartRun() {
     ringCollectionDeadline.reset();
     updateRingDeadlineDisplay();
     hovercraft.reset();
-    trackManager.reset();
+    if (gameMode === 'daily') {
+        activeDailyRun = null;
+        dailyLastError = '';
+        trackManager.reset({ random: Math.random }); // Seeded reset occurs once the server registers the retry.
+    } else {
+        trackManager.reset({ random: Math.random });
+        beginOnlineRun();
+    }
     cameraDynamics.snapTo(hovercraft);
     wasBoosting = false;
-    beginOnlineRun();
     updateHud();
     void startRunning();
 }
@@ -321,11 +363,11 @@ function restartRun() {
 async function handleGameKey(event) {
     // Help is a native modal. Opening it with Enter must not start the game,
     // and keys pressed while reading the guide must not resume gameplay.
-    if (helpDialog.open || leaderboardDialog.open) return;
+    if (helpDialog.open || leaderboardDialog.open || dailyPanel.dialog.open) return;
     // Enter/Space should activate focused UI controls, not start a run.
     // Other gameplay keys must still work after the player closes Help.
     if ((event.code === 'Enter' || event.code === 'Space')
-        && event.target?.closest?.('[data-help-open], [data-leaderboard-open], [data-submit-score]')) return;
+        && event.target?.closest?.('button, input, dialog')) return;
     if (event.repeat) return;
 
     if (gameState === 'start') {
@@ -451,7 +493,7 @@ async function refreshLeaderboard() {
 }
 
 async function submitOnlineScore() {
-    if (gameState !== 'terminated' || onlineSubmitted || !leaderboard.enabled) return;
+    if (gameMode !== 'classic' || gameState !== 'terminated' || onlineSubmitted || !leaderboard.enabled) return;
     const nickname = leaderboardNickname.value.trim();
     if (!/^[A-Za-z0-9_]{3,16}$/.test(nickname)) {
         leaderboardStatus.textContent = 'Enter 3–16 letters, numbers, or underscores for your nickname.';

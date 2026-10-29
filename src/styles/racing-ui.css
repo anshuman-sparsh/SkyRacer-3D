@@ -641,6 +641,7 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
     border-radius: 5px;
   }
   .hud-button::before { width: 4px; height: 4px; }
+  .hud-button[data-audio-toggle] { display: none; }
   .ring-deadline {
     top: max(96px, 19dvh);
     padding: 6px 10px;

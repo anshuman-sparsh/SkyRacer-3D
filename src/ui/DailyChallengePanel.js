@@ -35,6 +35,7 @@ export class DailyChallengePanel {
         this.loading = false;
         this.submitting = false;
         this.opener = this.openButtons[0];
+        this.launchedRun = false;
 
         for (const button of this.openButtons) {
             button.hidden = !service.enabled;
@@ -47,7 +48,18 @@ export class DailyChallengePanel {
         this.onClosed = () => {
             if (this.timer) clearInterval(this.timer);
             this.timer = 0;
-            this.opener?.focus?.({ preventScroll: true });
+            if (this.launchedRun) {
+                this.launchedRun = false;
+                // Restore keyboard steering after the dialog closes, including
+                // when opened from a focusable daily-menu button.
+                const canvas = document.querySelector('#app canvas');
+                if (canvas) {
+                    canvas.tabIndex = 0;
+                    canvas.focus({ preventScroll: true });
+                }
+            } else {
+                this.opener?.focus?.({ preventScroll: true });
+            }
         };
         this.dialog.addEventListener('close', this.onClosed);
     }
@@ -144,7 +156,10 @@ export class DailyChallengePanel {
         this.statusElement.textContent = 'Registering your daily attempt…';
         try {
             const ready = await this.onPlay();
-            if (ready) this.dialog.close();
+            if (ready) {
+                this.launchedRun = true;
+                this.dialog.close();
+            }
             else this.statusElement.textContent = 'Could not start the daily attempt.';
         } catch (error) {
             this.statusElement.textContent = error.message;

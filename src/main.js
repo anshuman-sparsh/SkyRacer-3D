@@ -4,6 +4,7 @@ import { CameraDynamics, createCamera } from './core/Camera.js';
 import { createRenderer, resizeRenderer } from './core/Renderer.js';
 import { createScene } from './core/Scene.js';
 import { disposeEnergyRingResources } from './entities/EnergyRing.js';
+import { disposeBlackRingResources } from './entities/BlackRing.js';
 import { disposeGroundAnchorResources } from './entities/GroundAnchor.js';
 import { HoverCraft } from './entities/HoverCraft.js';
 import { RingGuidance } from './entities/RingGuidance.js';
@@ -208,6 +209,7 @@ const STATE_COPY = {
     ],
     terminated: ['FLIGHT ENDED', 'Navigation barrier contact. Ready for another run?'],
     ringTimeout: ['FLIGHT ENDED', 'No ring collected within 30 seconds. Try another route.'],
+    blackRing: ['BLACK RING HIT', 'Fatal hazard! Avoid the black rings with a red warning cross.'],
 };
 
 function updateRingDeadlineDisplay() {
@@ -281,8 +283,12 @@ function setGameState(nextState, terminationReason = 'collision') {
         isTerminated && scoreManager.isNewBestRings,
     );
 
-    const copy = nextState === 'terminated' && terminationReason === 'ring-timeout'
-        ? STATE_COPY.ringTimeout
+    const copy = nextState === 'terminated'
+        ? (terminationReason === 'ring-timeout'
+            ? STATE_COPY.ringTimeout
+            : terminationReason === 'black-ring'
+                ? STATE_COPY.blackRing
+                : STATE_COPY.terminated)
         : STATE_COPY[nextState];
     if (copy) {
         stateTitle.textContent = copy[0];
@@ -788,6 +794,7 @@ function animate() {
             collectedSurgeRings,
             nearMisses,
             collided,
+            collisionType,
         } = trackManager.update(delta, hovercraft);
 
         // The countdown uses active-game delta, not wall-clock time. A ring
@@ -818,13 +825,15 @@ function animate() {
             ringsElement.classList.add('is-collected');
         }
 
-        // Either a barrier impact or 30 seconds without collecting a ring
-        // ends the run. Use the established spin-out to stop aircraft motion.
+        // Barrier/black-ring impacts or 30 seconds without a collected ring
+        // end the run. Keep the established spin-out and score semantics.
         if (collided || ringDeadlineExpired) {
             if (!collided) scoreManager.update(delta, hovercraft.velocity);
             hovercraft.spinOut();
             cameraDynamics.addShake(collided ? 1.1 : 0.45);
-            setGameState('terminated', collided ? 'collision' : 'ring-timeout');
+            setGameState('terminated', collided
+                ? (collisionType === 'black-ring' ? 'black-ring' : 'collision')
+                : 'ring-timeout');
             cameraDynamics.update(delta, hovercraft, false);
             audioEngine.update(0, false);
             hudElapsed = HUD_UPDATE_INTERVAL;
@@ -932,6 +941,7 @@ function disposeApp() {
     trackManager.destroy();
     disposeTrackSegmentResources();
     disposeEnergyRingResources();
+    disposeBlackRingResources();
     disposeObstacleResources();
     scene.remove(starField);
     starField.dispose();

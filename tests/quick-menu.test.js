@@ -113,7 +113,7 @@ test('all quick-menu DOM hooks exist and no gameplay source files are modified f
     const controller = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
     for (const attribute of ['quick-open', 'quick-menu', 'quick-help', 'quick-audio',
         'quick-leaderboard', 'quick-daily', 'theme-toggle',
-        'start-flight', 'overlay-hero']) {
+        'start-flight', 'overlay-hero', 'exit-menu']) {
         assert.ok(html.includes('data-' + attribute), 'Missing ' + attribute);
     }
     assert.match(controller, /const themeController = new ThemeController\(\)/);

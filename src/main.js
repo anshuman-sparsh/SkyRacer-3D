@@ -453,7 +453,10 @@ async function startRunning() {
         setGameState('running');
         clock.getDelta();
         if (!dailyPanel.dialog.open
-            && document.activeElement?.matches?.('[data-daily-open], [data-daily-menu]')) {
+            && document.activeElement?.matches?.(
+                '[data-daily-open], [data-daily-menu], [data-quick-open], ' +
+                '[data-start-flight], [data-restart], [data-pause-toggle]'
+            )) {
             renderer.domElement.tabIndex = 0;
             renderer.domElement.focus({ preventScroll: true });
         }

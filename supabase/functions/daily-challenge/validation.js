@@ -1,6 +1,6 @@
 // Pure M3 validation shared by Edge Function and Node tests.
 // Like Classic, anti-cheat is plausibility-based, not proof of browser physics.
-export const DAILY_COURSE_VERSION = 1;
+export const DAILY_COURSE_VERSION = 2;
 export const DAILY_GRACE_MS = 5 * 60 * 1000;
 export const MAX_DAILY_RUN_SECONDS = 60 * 60;
 export const RUN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

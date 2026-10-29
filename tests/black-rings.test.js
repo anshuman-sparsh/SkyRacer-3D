@@ -111,6 +111,35 @@ test('black-ring contact ends flight but preserves previously earned and final-f
     }, { ringSpawnChance: 0, obstacleSpawnChance: 0, blackRingSpawnChance: 0 });
 });
 
+test('a black-only impact eliminates without resetting earlier score or ring totals', () => {
+    withTrack(({ track, scene }) => {
+        const craft = new HoverCraft();
+        const hazard = new BlackRing();
+        hazard.position.set(0, 3, -5);
+        track.blackRings.push(hazard);
+        scene.add(hazard);
+
+        const score = new ScoreManager({ recordsEnabled: false });
+        score.update(15, new THREE.Vector3(0, 0, -16));
+        score.collectRings(7);
+        const scoreBefore = score.currentScore;
+        const ringsBefore = score.ringsCollected;
+
+        track.previousCraftPosition = new THREE.Vector3(0, 3, 10);
+        craft.position.set(0, 3, -10);
+        const impact = track.update(0.016, craft);
+        assert.equal(impact.collided, true);
+        assert.equal(impact.collisionType, 'black-ring');
+        assert.equal(impact.collectedRings, 0,
+            'black ring is a hazard, not an additional collectible ring');
+        // A collision only ends the current flight: no ScoreManager.reset().
+        assert.equal(score.currentScore, scoreBefore);
+        assert.equal(score.ringsCollected, ringsBefore);
+        assert.equal(score.currentScore, 2750);
+        assert.equal(score.ringsCollected, 7);
+    }, { ringSpawnChance: 0, obstacleSpawnChance: 0, blackRingSpawnChance: 0 });
+});
+
 test('passing beside a black ring never ends the run', () => {
     withTrack(({ track, scene }) => {
         const craft = new HoverCraft();
@@ -173,7 +202,7 @@ test('help and termination copy clearly explain that black rings are fatal', () 
     const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
     const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
     assert.match(html, /Black ring with a red X/);
-    assert.match(html, /immediately ends the run/);
+    assert.match(html, /All points and rings you've already earned stay in your final score/);
     assert.match(main, /blackRing: \['BLACK RING HIT'/);
     assert.match(main, /collisionType === 'black-ring'/);
     assert.match(main, /ringGuidance\.update\(trackManager\.energyRings, hovercraft\)/);

@@ -166,10 +166,10 @@ export class DailyChallengePanel {
         this.statusElement.textContent = 'Verifying your daily result…';
         try {
             const result = await this.onSubmit(name);
+            await this.refresh();
             this.statusElement.textContent = result.isNewBest
                 ? 'New daily personal best recorded!'
                 : 'Valid attempt recorded. Your higher daily score remains.';
-            await this.refresh();
         } catch (error) {
             this.statusElement.textContent = 'Could not submit: ' + error.message;
         } finally {

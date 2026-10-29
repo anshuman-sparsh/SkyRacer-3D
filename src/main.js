@@ -19,6 +19,8 @@ import { RingCollectionDeadline } from './managers/RingCollectionDeadline.js';
 import { LeaderboardService } from './services/LeaderboardService.js';
 import { DailyChallengeService } from './services/DailyChallengeService.js';
 import { DailyChallengePanel } from './ui/DailyChallengePanel.js';
+import { ThemeController } from './ui/ThemeController.js';
+import { QuickMenu } from './ui/QuickMenu.js';
 import { createDailyRandom } from './utils/DailyChallenge.js';
 import { GameplayAnalyticsService } from './services/GameplayAnalyticsService.js';
 import { formatLeaderboardName } from './utils/LeaderboardDisplay.js';
@@ -82,6 +84,8 @@ const boostElement = document.querySelector('[data-boost]');
 const boostFillElement = document.querySelector('[data-boost-fill]');
 const speedLinesElement = document.querySelector('[data-speed-lines]');
 const stateOverlay = document.querySelector('[data-state-overlay]');
+const overlayHero = document.querySelector('[data-overlay-hero]');
+const startFlightButton = document.querySelector('[data-start-flight]');
 const stateTitle = document.querySelector('[data-state-title]');
 const stateMessage = document.querySelector('[data-state-message]');
 const stateStats = document.querySelector('[data-state-stats]');
@@ -170,6 +174,17 @@ const dailyPanel = new DailyChallengePanel({
         && scoreManager.currentScore > 0 && Boolean(activeDailyRun) && !activeDailyRun.submitted
         && !dailySubmitting,
 });
+const themeController = new ThemeController();
+const quickMenu = new QuickMenu({
+    onOpen: () => {
+        if (gameState === 'running') setGameState('paused');
+    },
+    onHelp: openHelp,
+    onLeaderboard: () => openLeaderboard({ currentTarget: quickMenu.trigger }),
+    onDaily: () => dailyPanel.open({ currentTarget: quickMenu.trigger }),
+    canLeaderboard: () => leaderboard.enabled,
+    canDaily: () => dailyService.enabled,
+});
 leaderboardButton.hidden = !leaderboard.enabled;
 
 // Touch devices have no keyboard, so the prompts must name the gesture that works.
@@ -177,15 +192,17 @@ const isTouchPrimary = window.matchMedia('(pointer: coarse)').matches;
 
 const STATE_COPY = {
     start: [
-        isTouchPrimary ? 'TAP TO START' : 'PRESS ANY KEY TO START',
-        'COLLECT A RING EVERY 30 SECONDS • GREEN MARKER = ALIGNED',
+        'READY FOR TAKEOFF',
+        isTouchPrimary
+            ? 'Drag to steer. Hold BOOST to surge. Collect a ring every 30 seconds.'
+            : 'WASD / arrows to steer · Space / Shift to boost · Collect a ring every 30 seconds.',
     ],
     paused: [
-        'GAME PAUSED',
-        isTouchPrimary ? 'TAP ANYWHERE OR PRESS RESUME' : 'PRESS P OR RESUME TO CONTINUE',
+        'FLIGHT PAUSED',
+        isTouchPrimary ? 'Tap RESUME FLIGHT to continue.' : 'Press P or select RESUME FLIGHT to continue.',
     ],
-    terminated: ['FLIGHT TERMINATED', 'NAVIGATION BARRIER CONTACT'],
-    ringTimeout: ['FLIGHT TERMINATED', 'NO RING COLLECTED FOR 30 SECONDS'],
+    terminated: ['FLIGHT ENDED', 'Navigation barrier contact. Ready for another run?'],
+    ringTimeout: ['FLIGHT ENDED', 'No ring collected within 30 seconds. Try another route.'],
 };
 
 function updateRingDeadlineDisplay() {
@@ -221,6 +238,11 @@ function setGameState(nextState, terminationReason = 'collision') {
     updateRingDeadlineDisplay();
     const isRunning = nextState === 'running';
     const isTerminated = nextState === 'terminated';
+    const isStart = nextState === 'start';
+    stateOverlay.dataset.state = nextState;
+    overlayHero.hidden = !isStart;
+    startFlightButton.hidden = !(isStart || nextState === 'paused');
+    startFlightButton.textContent = nextState === 'paused' ? 'RESUME FLIGHT' : 'START FLIGHT';
     if (!isRunning) ringGuidance.hide();
 
     stateOverlay.hidden = isRunning;
@@ -480,7 +502,7 @@ function restartRun() {
 async function handleGameKey(event) {
     // Help is a native modal. Opening it with Enter must not start the game,
     // and keys pressed while reading the guide must not resume gameplay.
-    if (helpDialog.open || leaderboardDialog.open || dailyPanel.dialog.open) return;
+    if (helpDialog.open || leaderboardDialog.open || dailyPanel.dialog.open || quickMenu.opened) return;
     // Enter/Space should activate focused UI controls, not start a run.
     // Other gameplay keys must still work after the player closes Help.
     if ((event.code === 'Enter' || event.code === 'Space')
@@ -528,7 +550,7 @@ function closeHelp() {
 }
 
 function restoreHelpFocus() {
-    helpButton.focus({ preventScroll: true });
+    quickMenu.trigger.focus({ preventScroll: true });
 }
 
 function openLeaderboard(event) {
@@ -549,8 +571,7 @@ function closeLeaderboard() {
 }
 
 function restoreLeaderboardFocus() {
-    const target = leaderboardReturnFocus?.hidden ? leaderboardButton : leaderboardReturnFocus;
-    target?.focus?.({ preventScroll: true });
+    quickMenu.trigger.focus({ preventScroll: true });
 }
 
 async function refreshLeaderboard() {
@@ -907,6 +928,8 @@ function disposeApp() {
     classicModeButton.removeEventListener('click', returnToClassic);
     dailySubmitButton.removeEventListener('click', openDailyResults);
     dailyPanel.dispose();
+    quickMenu.dispose();
+    themeController.dispose();
     inputManager.destroy();
     collisionDebug?.dispose();
     ringGuidance.dispose();
@@ -944,6 +967,9 @@ leaderboardDialog.addEventListener('close', restoreLeaderboardFocus);
 leaderboardRefreshButton.addEventListener('click', refreshLeaderboard);
 leaderboardSendButton.addEventListener('click', submitOnlineScore);
 pauseButton.addEventListener('click', togglePause);
+startFlightButton.addEventListener('click', () => {
+    if (gameState === 'start' || gameState === 'paused') void startRunning();
+});
 restartButton.addEventListener('click', restartRun);
 classicModeButton.addEventListener('click', returnToClassic);
 dailySubmitButton.addEventListener('click', openDailyResults);

@@ -289,7 +289,17 @@
   <nav class="quick-menu" id="skyracer-quick-menu" data-quick-menu aria-label="SkyRacer navigation" hidden>
     <div class="quick-menu__eyebrow">PILOT CONTROL</div>
     <button type="button" data-quick-help>Help &amp; controls</button>
-    <button type="button" data-quick-audio>Toggle audio</button>
+    <div class="quick-menu__audio-group" data-quick-audio-group>
+      <button class="quick-menu__audio-trigger" type="button" data-quick-audio aria-haspopup="true" aria-expanded="false" aria-controls="skyracer-audio-panel">Audio <span class="quick-menu__audio-state" data-quick-audio-state>On</span></button>
+      <div class="quick-menu__audio-popover" id="skyracer-audio-panel" data-quick-audio-panel role="group" aria-label="Audio settings" hidden>
+        <div class="quick-menu__audio-heading">AUDIO SETTINGS</div>
+        <p class="quick-menu__audio-hint">Engine and game sound effects</p>
+        <div class="quick-menu__audio-options" role="group" aria-label="Audio On or Off">
+          <button type="button" data-quick-audio-on aria-pressed="true">ON</button>
+          <button type="button" data-quick-audio-off aria-pressed="false">OFF</button>
+        </div>
+      </div>
+    </div>
     <button type="button" data-quick-leaderboard>All-time leaderboard</button>
     <button type="button" data-quick-daily>Daily challenge</button>
     <div class="quick-menu__divider" role="separator"></div>

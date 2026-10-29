@@ -18,6 +18,9 @@ create table public.gameplay_events (
     received_at timestamptz not null default now(),
     constraint gameplay_events_metrics_check check (
         (event_name = 'game_over'
+            and score is not null and rings is not null
+            and distance is not null and duration_seconds is not null
+            and reason is not null
             and score between 0 and 2147483647
             and rings between 0 and 100000
             and distance between 0 and 100000000
@@ -121,7 +124,7 @@ select
     count(*) filter (where event_name = 'daily_challenge_played') as daily_challenge_plays,
     round(avg(score) filter (where event_name = 'game_over'), 1) as average_score,
     round(avg(rings) filter (where event_name = 'game_over'), 1) as average_rings,
-    round(avg(distance)::numeric filter (where event_name = 'game_over'), 1) as average_distance,
+    round((avg(distance) filter (where event_name = 'game_over'))::numeric, 1) as average_distance,
     round(
         count(*) filter (where event_name = 'game_start')::numeric
             / nullif(count(distinct session_id) filter (where event_name = 'game_start'), 0),

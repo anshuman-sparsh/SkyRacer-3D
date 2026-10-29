@@ -165,7 +165,7 @@ const dailyPanel = new DailyChallengePanel({
     onPlay: launchDailyChallenge,
     onSubmit: submitDailyScore,
     onOpen: () => { if (gameState === 'running') setGameState('paused'); },
-    canPlay: () => gameState === 'start' || gameState === 'terminated',
+    canPlay: () => !startTransitionPending && (gameState === 'start' || gameState === 'terminated'),
     canSubmit: () => gameMode === 'daily' && gameState === 'terminated'
         && scoreManager.currentScore > 0 && Boolean(activeDailyRun) && !activeDailyRun.submitted
         && !dailySubmitting,
@@ -282,8 +282,9 @@ function setGameState(nextState, terminationReason = 'collision') {
 function updateModeDisplays() {
     const daily = gameMode === 'daily';
     modeLabel.textContent = daily && activeDailyRun
-        ? 'SKYRACER // DAILY ' + activeDailyRun.date
-        : daily ? 'SKYRACER // DAILY CHALLENGE' : 'SKYRACER // FLIGHT 01';
+        ? 'DAILY CHALLENGE // ' + activeDailyRun.date
+        : daily ? 'DAILY CHALLENGE' : 'SKYRACER // FLIGHT 01';
+    modeLabel.classList.toggle('is-daily', daily);
     bestBadgeElement.hidden = daily;
     bestRingsBadgeElement.hidden = daily;
     overlayBestElement.hidden = daily;
@@ -407,6 +408,9 @@ async function startRunning() {
             if (!activeDailyRun || activeDailyRun.submitted) {
                 activeDailyRun = await dailyService.begin();
             }
+            // An old open leaderboard can straddle midnight; trust the
+            // server-issued date, never yesterday's cached personal best.
+            if (dailyPanel.today?.date !== activeDailyRun.date) dailyPersonalBest = null;
             trackManager.reset({
                 random: createDailyRandom(activeDailyRun.date, activeDailyRun.courseVersion),
             });
@@ -430,7 +434,7 @@ async function startRunning() {
     } catch (error) {
         dailyLastError = error.message;
         updateModeDisplays();
-        console.error('[SkyRacer] Could not start daily attempt:', error);
+        console.error('[SkyRacer] Could not start the run:', error);
         return false;
     } finally {
         startTransitionPending = false;

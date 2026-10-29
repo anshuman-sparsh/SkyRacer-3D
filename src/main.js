@@ -525,7 +525,7 @@ function openLeaderboard(event) {
     if (!leaderboard.enabled || leaderboardDialog.open) return;
     leaderboardReturnFocus = event?.currentTarget ?? leaderboardButton;
     if (gameState === 'running') setGameState('paused');
-    leaderboardForm.hidden = gameState !== 'terminated' || onlineSubmitted;
+    leaderboardForm.hidden = gameMode !== 'classic' || gameState !== 'terminated' || onlineSubmitted;
     leaderboardNickname.value = leaderboard.getNickname();
     leaderboardNickname.readOnly = false;
     leaderboardNicknameLabel.textContent = 'Your pilot nickname (3–16 letters, numbers or underscores)';
@@ -584,7 +584,7 @@ async function refreshLeaderboard() {
         const previousBest = response?.me ? Number(response.me.score) : null;
         const beatsPreviousBest = previousBest === null
             || scoreManager.currentScore > previousBest;
-        const canSubmit = gameState === 'terminated' && !onlineSubmitted && beatsPreviousBest;
+        const canSubmit = gameMode === 'classic' && gameState === 'terminated' && !onlineSubmitted && beatsPreviousBest;
         leaderboardForm.hidden = !canSubmit;
         scoreSubmitButton.hidden = !canSubmit || !leaderboard.enabled;
         leaderboardStatus.textContent = !beatsPreviousBest && gameState === 'terminated'
@@ -867,6 +867,10 @@ function handleVisibilityChange() {
     if (document.hidden && gameState === 'running') setGameState('paused');
 }
 
+function openDailyResults(event) {
+    dailyPanel.open(event);
+}
+
 function disposeApp() {
     scoreManager.persistRecords();
     analytics.dispose();
@@ -890,6 +894,9 @@ function disposeApp() {
     leaderboardSendButton.removeEventListener('click', submitOnlineScore);
     pauseButton.removeEventListener('click', togglePause);
     restartButton.removeEventListener('click', restartRun);
+    classicModeButton.removeEventListener('click', returnToClassic);
+    dailySubmitButton.removeEventListener('click', openDailyResults);
+    dailyPanel.dispose();
     inputManager.destroy();
     collisionDebug?.dispose();
     ringGuidance.dispose();
@@ -928,6 +935,8 @@ leaderboardRefreshButton.addEventListener('click', refreshLeaderboard);
 leaderboardSendButton.addEventListener('click', submitOnlineScore);
 pauseButton.addEventListener('click', togglePause);
 restartButton.addEventListener('click', restartRun);
+classicModeButton.addEventListener('click', returnToClassic);
+dailySubmitButton.addEventListener('click', openDailyResults);
 window.addEventListener('pagehide', disposeApp, { once: true });
 setGameState('start');
 updateHud();

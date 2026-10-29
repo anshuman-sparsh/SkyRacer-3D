@@ -21,6 +21,7 @@ import { DailyChallengeService } from './services/DailyChallengeService.js';
 import { DailyChallengePanel } from './ui/DailyChallengePanel.js';
 import { ThemeController } from './ui/ThemeController.js';
 import { QuickMenu } from './ui/QuickMenu.js';
+import { shouldToggleFlightPause } from './ui/FlightKeyPolicy.js';
 import { createDailyRandom } from './utils/DailyChallenge.js';
 import { GameplayAnalyticsService } from './services/GameplayAnalyticsService.js';
 import { formatLeaderboardName } from './utils/LeaderboardDisplay.js';
@@ -518,14 +519,10 @@ function restartRun() {
 }
 
 function handleGameKey(event) {
-    // Only explicit START FLIGHT / FLY AGAIN button activation may create a
-    // new run. Never start or retry from canvas touch, arrows, WASD or generic
-    // Enter/Space. Native Enter/Space on the focused button still clicks it.
+    // A new flight or retry starts exclusively from START FLIGHT or FLY AGAIN,
+    // not arbitrary keys, arrow movement or taps on the overlay.
     if (helpDialog.open || leaderboardDialog.open || dailyPanel.dialog.open || quickMenu.opened) return;
-    if (event.repeat || gameState === 'start' || gameState === 'terminated') return;
-    // Preserve P / Esc pause behavior after the first launch. On a paused
-    // flight, clicking RESUME FLIGHT is always available as an alternative.
-    if (event.code === 'Escape' || event.code === 'KeyP') togglePause();
+    if (shouldToggleFlightPause(gameState, event.code, event.repeat)) togglePause();
 }
 
 function openHelp() {

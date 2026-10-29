@@ -124,6 +124,33 @@ export class LeaderboardService {
         return asJson(response);
     }
 
+    /**
+     * Best-effort gameplay telemetry uses the SAME anonymous Supabase session
+     * as the leaderboard, so no second account or public secret is required.
+     * The Edge Function is strictly rate-limited and data is non-authoritative.
+     */
+    async sendGameplayEvent(event, retry = true) {
+        if (!this.enabled) return false;
+        const session = await this.#ensureSession();
+        const response = await this.fetchImpl(this.url + '/functions/v1/game-events', {
+            method: 'POST',
+            headers: {
+                apikey: this.key,
+                Authorization: 'Bearer ' + session.access_token,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(event),
+            // Preserve small end-of-run events during a navigation or tab close.
+            keepalive: true,
+        });
+        if (response.status === 401 && retry) {
+            await this.#ensureSession(true);
+            return this.sendGameplayEvent(event, false);
+        }
+        const data = await asJson(response);
+        return data?.accepted === true;
+    }
+
     async beginRun() {
         if (!this.enabled) return null;
         const result = await this.#request('POST', { action: 'start' });

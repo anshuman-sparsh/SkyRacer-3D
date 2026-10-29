@@ -17,6 +17,7 @@ import { InputManager } from './managers/InputManager.js';
 import { ScoreManager } from './managers/ScoreManager.js';
 import { RingCollectionDeadline } from './managers/RingCollectionDeadline.js';
 import { LeaderboardService } from './services/LeaderboardService.js';
+import { GameplayAnalyticsService } from './services/GameplayAnalyticsService.js';
 import { formatLeaderboardName } from './utils/LeaderboardDisplay.js';
 import { TrackManager } from './managers/TrackManager.js';
 import { AudioEngine } from './utils/AudioEngine.js';
@@ -54,6 +55,9 @@ const collisionDebug = new URLSearchParams(window.location.search).get('debugHit
 const scoreManager = new ScoreManager();
 const ringCollectionDeadline = new RingCollectionDeadline();
 const leaderboard = new LeaderboardService();
+const analytics = new GameplayAnalyticsService({
+    submitEvent: leaderboard.enabled ? (event) => leaderboard.sendGameplayEvent(event) : null,
+});
 const speedParticles = new SpeedParticles();
 const audioEngine = new AudioEngine();
 scene.add(hovercraft);
@@ -117,6 +121,8 @@ const inputManager = new InputManager(window, {
 
 let animationFrameId = 0;
 let gameState = 'start';
+let activeRunSeconds = 0;
+let startTransitionPending = false;
 let wasBoosting = false;
 let resizeFrameId = 0;
 let hudElapsed = HUD_UPDATE_INTERVAL;
@@ -175,7 +181,18 @@ function updateRingDeadlineDisplay() {
 }
 
 function setGameState(nextState, terminationReason = 'collision') {
+    const wasTerminated = gameState === 'terminated';
     gameState = nextState;
+    if (nextState === 'terminated' && !wasTerminated) {
+        analytics.trackRunEnd({
+            mode: 'classic',
+            score: scoreManager.currentScore,
+            rings: scoreManager.ringsCollected,
+            distance: scoreManager.distance,
+            durationSeconds: Math.min(activeRunSeconds, 21600),
+            reason: terminationReason === 'ring-timeout' ? 'ring-timeout' : 'collision',
+        });
+    }
     updateRingDeadlineDisplay();
     const isRunning = nextState === 'running';
     const isTerminated = nextState === 'terminated';
@@ -235,10 +252,22 @@ function beginOnlineRun() {
 }
 
 async function startRunning() {
-    if (gameState === 'start') beginOnlineRun();
-    await audioEngine.start();
-    setGameState('running');
-    clock.getDelta();
+    // Avoid counting duplicate taps or key presses while audio is starting.
+    if (startTransitionPending || gameState === 'running') return;
+    startTransitionPending = true;
+    const isNewRun = gameState === 'start' || gameState === 'terminated';
+    try {
+        if (gameState === 'start') beginOnlineRun();
+        await audioEngine.start();
+        setGameState('running');
+        clock.getDelta();
+        if (isNewRun) {
+            activeRunSeconds = 0;
+            analytics.trackRunStart('classic');
+        }
+    } finally {
+        startTransitionPending = false;
+    }
 }
 
 function togglePause() {
@@ -251,6 +280,7 @@ function togglePause() {
 
 /** Rebuilds the run in place, keeping every GPU resource and the audio context. */
 function restartRun() {
+    if (startTransitionPending || gameState !== 'terminated') return;
     ringGuidance.hide();
     scoreManager.reset();
     ringCollectionDeadline.reset();
@@ -549,6 +579,10 @@ function animate() {
     }
 
     if (gameState === 'running') {
+        // Only active flying contributes to gameplay duration; pause time is excluded.
+        if (Number.isFinite(frameDelta) && frameDelta > 0) {
+            activeRunSeconds = Math.min(21600, activeRunSeconds + Math.min(frameDelta, 60));
+        }
         const {
             collectedRings,
             collectedEnergyRings,
@@ -662,6 +696,7 @@ function handleVisibilityChange() {
 
 function disposeApp() {
     scoreManager.persistRecords();
+    analytics.dispose();
     cancelAnimationFrame(animationFrameId);
     cancelAnimationFrame(resizeFrameId);
     window.removeEventListener('resize', handleResize);

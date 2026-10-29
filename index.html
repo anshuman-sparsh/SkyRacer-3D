@@ -142,6 +142,26 @@
     @media (max-width: 767px) {
       .leaderboard-open { left: max(12px, env(safe-area-inset-left)); bottom: max(107px, calc(env(safe-area-inset-bottom) + 99px)); min-height: 32px; font-size: 10px; padding: 0 10px; }
     }
+    /* M3: Daily mode uses the same compact native dialog on desktop and touch. */
+    .daily-open { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(104px, calc(env(safe-area-inset-bottom) + 87px)); z-index: 4; min-height: 35px; padding: 0 12px; border: 1px solid rgba(255, 198, 95, .65); border-radius: 999px; color: #fff0c2; background: rgba(26, 15, 43, .9); font: 750 11px/1 ui-monospace, Consolas, monospace; cursor: pointer; }
+    .daily-open:hover { border-color: #ffd078; background: rgba(57, 35, 67, .95); }
+    .daily-open[hidden], .daily-form[hidden], .daily-own-overlay[hidden] { display: none; }
+    .daily-open:focus-visible, .daily-action:focus-visible { outline: 2px solid #ffd078; outline-offset: 3px; }
+    .daily-own-overlay { margin: 12px 0 0; color: #ffd078; font: 700 12px/1.5 ui-monospace, Consolas, monospace; }
+    .daily-action { margin: 12px 4px 0; padding: 10px 15px; border: 1px solid rgba(255, 199, 98, .6); border-radius: 9px; color: #fff6e7; background: rgba(130, 72, 20, .26); font: 750 11px/1.3 ui-monospace, Consolas, monospace; cursor: pointer; }
+    .daily-action:disabled { opacity: .55; cursor: not-allowed; }
+    .daily-details { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; background: rgba(255, 193, 88, .065); border: 1px solid rgba(255, 193, 88, .2); border-radius: 10px; color: #f9e8c7; font: 700 12px/1.3 ui-monospace, Consolas, monospace; }
+    .daily-countdown { color: #ffdb8e; font-variant-numeric: tabular-nums; }
+    .daily-form { margin-top: 10px; padding: 12px; border: 1px solid rgba(255, 198, 95, .28); border-radius: 9px; }
+    .daily-form label { display: block; margin-bottom: 7px; color: #ffdb8e; font-size: 12px; }
+    .daily-form input { width: 100%; max-width: 270px; min-height: 38px; padding: 8px; border: 1px solid var(--edge); background: #0c061c; color: #fff; border-radius: 8px; font-size: 14px; }
+    .daily-form input[readonly] { color: var(--neon); opacity: .8; }
+    .daily-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+    @media (max-width: 767px) {
+      .daily-open { left: max(12px, env(safe-area-inset-left)); bottom: max(148px, calc(env(safe-area-inset-bottom) + 142px)); min-height: 32px; font-size: 10px; padding: 0 10px; }
+      .daily-action { padding: 9px 12px; }
+    }
+    .state-overlay__best[hidden], .score-panel__best[hidden], .rings-panel__best[hidden] { display: none; }
     @keyframes ring-deadline-pulse { to { box-shadow: 0 0 22px rgba(255, 63, 164, .5); } }
     @keyframes state-pulse { 50% { opacity: .62; } }
     @keyframes speed-streak { to { background-position-y: 42px, 42px; } }
@@ -197,7 +217,7 @@
       <svg class="speedometer__dial" viewBox="0 0 146 112" aria-hidden="true"><circle class="speedometer__track" cx="73" cy="73" r="50" /><circle class="speedometer__arc" data-speed-arc cx="73" cy="73" r="50" /></svg>
       <div class="speedometer__readout"><strong class="speedometer__value" data-speed>000</strong><span class="speedometer__unit">km/h</span></div>
     </section>
-    <section class="score-panel glass-panel"><span class="score-panel__brand">SKYRACER // FLIGHT 01</span><span class="hud__label">Score</span><strong class="score-panel__value" data-score>0</strong><div class="score-panel__stats"><span class="score-panel__best" data-best-badge>Best <strong data-best>0</strong></span></div></section>
+    <section class="score-panel glass-panel"><span class="score-panel__brand" data-mode-label>SKYRACER // FLIGHT 01</span><span class="hud__label">Score</span><strong class="score-panel__value" data-score>0</strong><div class="score-panel__stats"><span class="score-panel__best" data-best-badge>Best <strong data-best>0</strong></span></div></section>
     <div class="telemetry">
       <section class="boost-panel glass-panel" data-boost role="meter" aria-label="Energy Boost" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="boost-panel__head"><span class="hud__label">Energy Boost</span><span class="boost-panel__status">READY</span></div><div class="boost-meter"><div class="boost-meter__fill" data-boost-fill></div></div></section>
       <div class="telemetry__row">
@@ -233,6 +253,10 @@
       </div>
       <button class="state-overlay__action" type="button" data-restart hidden>RESTART</button>
       <button class="state-overlay__action" type="button" data-submit-score hidden>SUBMIT SCORE</button>
+      <p class="daily-own-overlay" data-daily-own-overlay hidden></p>
+      <button class="state-overlay__action" type="button" data-daily-submit hidden>SUBMIT DAILY SCORE</button>
+      <button class="daily-action" type="button" data-daily-menu hidden>🏆 DAILY CHALLENGE</button>
+      <button class="daily-action" type="button" data-classic-mode hidden>RETURN TO CLASSIC</button>
     </div>
   </div>
   <button class="help-open" type="button" data-help-open aria-haspopup="dialog" aria-controls="how-to-play-dialog">? HOW TO PLAY</button>
@@ -268,6 +292,11 @@
         <p><strong>Energy Boost bar:</strong> Shows the time left on a blue ring's automatic boost. Holding BOOST is separate.</p>
       </section>
       <section class="help-dialog__section">
+        <h3>Daily Challenge (separate from Classic)</h3>
+        <p>A new seeded course begins at 00:00 UTC. All pilots get the same ring and obstacle placements. Your best daily score ranks against other pilots; unlimited attempts are allowed, subject to anti-abuse rate limits.</p>
+        <p>Daily runs do not update your Classic records or all-time leaderboard. You can return to Classic from the game-over screen.</p>
+      </section>
+      <section class="help-dialog__section">
         <h3>Pause, restart, and sound</h3>
         <p>Use <strong>Pause / Resume</strong> to take a break, and <strong>Restart</strong> after a crash.</p>
         <p>Use <strong>Audio On / Off</strong> to turn game sounds on or off.</p>
@@ -276,6 +305,7 @@
     <p class="help-dialog__note">Gameplay analytics use pseudonymous player and session IDs to count runs and results. Event records contain no nickname or IP address.</p>
     <p class="help-dialog__note">Opening this guide during a run pauses the game. Close it, then choose Resume to keep flying.</p>
   </dialog>
+  <button class="daily-open" type="button" data-daily-open hidden>🏆 DAILY CHALLENGE</button>
   <button class="leaderboard-open" type="button" data-leaderboard-open aria-haspopup="dialog" aria-controls="leaderboard-dialog" hidden>🏆 LEADERBOARD</button>
   <dialog class="help-dialog leaderboard-dialog" id="leaderboard-dialog" data-leaderboard-dialog aria-labelledby="leaderboard-title">
     <div class="help-dialog__head">
@@ -296,6 +326,31 @@
       <p class="help-dialog__note">Only scores from newly completed, registered runs can enter the global leaderboard.</p>
     </div>
     <p class="help-dialog__note">Opening this panel pauses your flight. Close it and press Resume when you are ready.</p>
+  </dialog>
+  <dialog class="help-dialog leaderboard-dialog" id="daily-challenge-dialog" data-daily-dialog aria-labelledby="daily-dialog-title">
+    <div class="help-dialog__head">
+      <h2 class="help-dialog__title" id="daily-dialog-title">DAILY SKYRACER CHALLENGE</h2>
+      <button class="help-close" type="button" data-daily-close aria-label="Close daily challenge">×</button>
+    </div>
+    <p class="help-dialog__intro">A shared course for every pilot. New course daily at 00:00 UTC. Unlimited retries; only your highest score counts.</p>
+    <div class="daily-details">
+      <span data-daily-date>UTC DATE —</span>
+      <span>New course in <strong class="daily-countdown" data-daily-countdown>--:--:--</strong></span>
+    </div>
+    <p class="leaderboard-own" data-daily-own>No daily score yet.</p>
+    <p class="leaderboard-status" data-daily-status role="status" aria-live="polite">Open this panel for today's ranking.</p>
+    <ol class="leaderboard-list" data-daily-list aria-label="Today's top 50 pilots"></ol>
+    <button class="leaderboard-refresh" type="button" data-daily-refresh>Refresh daily rankings</button>
+    <div class="daily-form" data-daily-form hidden>
+      <label data-daily-nickname-label for="daily-pilot-name">Pilot nickname (3–16 letters, numbers or underscores)</label>
+      <input id="daily-pilot-name" data-daily-nickname minlength="3" maxlength="16" pattern="[A-Za-z0-9_]{3,16}" autocomplete="nickname" placeholder="SkyPilot" />
+      <button class="daily-action" type="button" data-daily-send>SUBMIT FINISHED RUN</button>
+      <p class="help-dialog__note">Your nickname becomes permanent across Classic and Daily rankings.</p>
+    </div>
+    <div class="daily-actions">
+      <button class="daily-action" type="button" data-daily-play>PLAY TODAY’S COURSE</button>
+    </div>
+    <p class="help-dialog__note">Playing Daily never changes your Classic personal best. Daily scoring uses the same 10 × distance + 50 × rings formula.</p>
   </dialog>
   <script type="module" src="/src/main.js"></script>
 </body>

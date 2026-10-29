@@ -91,6 +91,7 @@ const stateMessage = document.querySelector('[data-state-message]');
 const stateStats = document.querySelector('[data-state-stats]');
 const finalScoreElement = document.querySelector('[data-final-score]');
 const finalRingsElement = document.querySelector('[data-final-rings]');
+const finalDistanceElement = document.querySelector('[data-final-distance]');
 const bestBadgeElement = document.querySelector('[data-best-badge]');
 const bestElement = document.querySelector('[data-best]');
 const bestRingsBadgeElement = document.querySelector('[data-best-rings-badge]');
@@ -180,6 +181,7 @@ const quickMenu = new QuickMenu({
         if (gameState === 'running') setGameState('paused');
     },
     onHelp: openHelp,
+    onAudio: () => { void handleAudioToggle(); },
     onLeaderboard: () => openLeaderboard({ currentTarget: quickMenu.trigger }),
     onDaily: () => dailyPanel.open({ currentTarget: quickMenu.trigger }),
     canLeaderboard: () => leaderboard.enabled,
@@ -266,6 +268,7 @@ function setGameState(nextState, terminationReason = 'collision') {
         scoreManager.persistRecords();
         finalScoreElement.textContent = scoreManager.currentScore.toLocaleString();
         finalRingsElement.textContent = scoreManager.ringsCollected.toString();
+        finalDistanceElement.textContent = scoreManager.distance.toFixed(1);
         restartButton.focus();
     }
 

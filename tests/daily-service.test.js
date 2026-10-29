@@ -26,13 +26,13 @@ test('Daily API shares one anonymous Supabase session without posting Classic sc
             });
             if (url.includes('daily-challenge')) {
                 if (options.method === 'GET') return asResponse({
-                    date: '2026-10-29', courseVersion: 1, serverNow: '2026-10-29T11:00:00Z',
+                    date: '2026-10-29', courseVersion: 2, serverNow: '2026-10-29T11:00:00Z',
                     entries: [], nickname: null, me: null,
                 });
                 const body = JSON.parse(options.body);
                 if (body.action === 'start') return asResponse({
                     runId: '12345678-1234-4234-8234-123456789abc',
-                    date: '2026-10-29', courseVersion: 1, nickname: null,
+                    date: '2026-10-29', courseVersion: 2, nickname: null,
                 });
                 if (body.action === 'finish') return asResponse({
                     accepted: true, isNewBest: true, personalBest: 1070,
@@ -46,7 +46,7 @@ test('Daily API shares one anonymous Supabase session without posting Classic sc
     const today = await daily.getToday();
     assert.equal(today.date, '2026-10-29');
     const run = await daily.begin();
-    assert.equal(run.courseVersion, 1);
+    assert.equal(run.courseVersion, 2);
     assert.equal(run.submitted, false);
     const result = await daily.finish(run, {
         nickname: 'Pilot42', score: 1070, rings: 2, distance: 97,
@@ -78,7 +78,7 @@ test('failed Daily submission preserves the same run for a nickname retry', asyn
                 const body = JSON.parse(options.body);
                 if (body.action === 'start') return asResponse({
                     runId: '12345678-1234-4234-8234-123456789abc',
-                    date: '2026-10-29', courseVersion: 1,
+                    date: '2026-10-29', courseVersion: 2,
                 });
                 submissions += 1;
                 return submissions === 1

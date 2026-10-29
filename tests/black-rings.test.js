@@ -6,6 +6,7 @@ import { BlackRing, disposeBlackRingResources } from '../src/entities/BlackRing.
 import { EnergyRing } from '../src/entities/EnergyRing.js';
 import { HoverCraft } from '../src/entities/HoverCraft.js';
 import { TrackManager } from '../src/managers/TrackManager.js';
+import { ScoreManager } from '../src/managers/ScoreManager.js';
 import { createDailyRandom } from '../src/utils/DailyChallenge.js';
 
 function withTrack(run, options = {}) {
@@ -67,7 +68,7 @@ test('black hazard rings have distinct markings and a swept crossing volume', ()
     }
 });
 
-test('black-ring contact terminates before simultaneous collectible-ring scoring', () => {
+test('black-ring contact ends flight but preserves previously earned and final-frame collectible rewards', () => {
     withTrack(({ track, scene }) => {
         const craft = new HoverCraft();
         const hazard = new BlackRing();
@@ -84,15 +85,29 @@ test('black-ring contact terminates before simultaneous collectible-ring scoring
 
         track.previousCraftPosition = new THREE.Vector3(0, 3, 10);
         craft.position.set(0, 3, -10);
+        const score = new ScoreManager({ recordsEnabled: false });
+        score.update(10, new THREE.Vector3(0, 0, -20));
+        score.collectRings(4);
+        const earnedBefore = score.currentScore;
+        const ringsBefore = score.ringsCollected;
+
         const result = track.update(0.016, craft);
         assert.equal(result.collided, true);
         assert.equal(result.collisionType, 'black-ring');
-        assert.equal(result.collectedRings, 0);
-        assert.equal(result.collectedEnergyRings, 0);
+        assert.equal(result.collectedRings, 1, 'a previously earned ring cannot be erased by fatal contact');
+        assert.equal(result.collectedEnergyRings, 1);
         assert.equal(result.collectedSurgeRings, 0);
         assert.equal(result.nearMisses, 0);
-        assert.equal(track.energyRings.includes(regular), true,
-            'the collectible ring must remain uncollected on terminal frame');
+        assert.equal(track.energyRings.includes(regular), false,
+            'collectible rings still count on the terminal frame, like barrier collisions');
+
+        // Mirror the existing main game loop: commit collected rings before
+        // changing gameState to terminated; never reset the ScoreManager.
+        score.collectRings(result.collectedRings);
+        assert.equal(score.currentScore, earnedBefore + 50);
+        assert.equal(score.ringsCollected, ringsBefore + 1);
+        assert.equal(score.currentScore, 2250);
+        assert.equal(score.ringsCollected, 5);
     }, { ringSpawnChance: 0, obstacleSpawnChance: 0, blackRingSpawnChance: 0 });
 });
 
@@ -116,6 +131,8 @@ test('passing beside a black ring never ends the run', () => {
 
 test('black-ring spawn frequency stays below barrier frequency and opening is clear', () => {
     withTrack(({ track }) => {
+        assert.equal(track.blackRingSpawnChance, 0.15);
+        assert.equal(track.obstacleSpawnChance, 0.55);
         assert.equal(track.blackRingSpawnChance < track.obstacleSpawnChance, true);
         assert.ok(track.blackRings.length > 0, 'rare black rings should still appear');
         assert.ok(track.obstacles.length > track.blackRings.length,

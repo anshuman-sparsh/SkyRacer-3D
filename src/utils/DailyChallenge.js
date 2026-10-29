@@ -1,6 +1,6 @@
 // Deterministic, versioned UTC daily-course generator.
 // Only layout consumes this RNG: decorative animation never changes placements.
-export const DAILY_COURSE_VERSION = 1;
+export const DAILY_COURSE_VERSION = 2;
 const UTC_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function isValidUtcDate(value) {

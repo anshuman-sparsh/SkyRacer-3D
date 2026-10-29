@@ -22,7 +22,7 @@ class FakeElement {
 
 function fixture(config = {}) {
     const prev = globalThis.document;
-    const selectors = ['quick-open', 'quick-menu', 'quick-help',
+    const selectors = ['quick-open', 'quick-menu', 'quick-help', 'quick-audio',
         'quick-leaderboard', 'quick-daily'];
     const elements = new Map(selectors.map(x => [x, new FakeElement()]));
     elements.get('quick-menu').hidden = true;
@@ -51,6 +51,7 @@ test('one quick menu provides actions and saves open state in aria-expanded', ()
     const f = fixture({
         onOpen: () => calls.push('pause'),
         onHelp: () => calls.push('help'),
+        onAudio: () => calls.push('audio'),
         onLeaderboard: () => calls.push('classic'),
         onDaily: () => calls.push('daily'),
     });
@@ -67,11 +68,14 @@ test('one quick menu provides actions and saves open state in aria-expanded', ()
         assert.equal(el('quick-menu').hidden, true);
         assert.deepEqual(calls, ['pause', 'help']);
         el('quick-open').click();
+        el('quick-audio').click();
+        assert.deepEqual(calls, ['pause', 'help', 'pause', 'audio']);
+        el('quick-open').click();
         el('quick-leaderboard').click();
-        assert.deepEqual(calls, ['pause', 'help', 'pause', 'classic']);
+        assert.deepEqual(calls, ['pause', 'help', 'pause', 'audio', 'pause', 'classic']);
         el('quick-open').click();
         el('quick-daily').click();
-        assert.deepEqual(calls, ['pause', 'help', 'pause', 'classic', 'pause', 'daily']);
+        assert.deepEqual(calls, ['pause', 'help', 'pause', 'audio', 'pause', 'classic', 'pause', 'daily']);
     } finally { f.restore(); }
 });
 
@@ -107,7 +111,7 @@ test('unavailable leaderboard or Daily are disabled without affecting help or th
 test('all quick-menu DOM hooks exist and no gameplay source files are modified for theme colors', () => {
     const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
     const controller = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-    for (const attribute of ['quick-open', 'quick-menu', 'quick-help',
+    for (const attribute of ['quick-open', 'quick-menu', 'quick-help', 'quick-audio',
         'quick-leaderboard', 'quick-daily', 'theme-toggle',
         'start-flight', 'overlay-hero']) {
         assert.ok(html.includes('data-' + attribute), 'Missing ' + attribute);

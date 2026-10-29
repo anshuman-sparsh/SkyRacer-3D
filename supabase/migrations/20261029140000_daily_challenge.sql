@@ -113,3 +113,16 @@ revoke all on function public.accept_daily_challenge_result(
 grant execute on function public.accept_daily_challenge_result(
     uuid, uuid, text, integer, integer, numeric
 ) to service_role;
+
+-- Keep the same-day competition lean on the free tier. Only historical daily
+-- attempts and bests older than 90 days are removed. Classic data is untouched.
+select cron.schedule(
+    'skyracer-daily-90d-retention',
+    '45 3 * * *',
+    $retention$
+        delete from public.daily_best_scores
+        where challenge_date < (now() at time zone 'UTC')::date - 90;
+        delete from public.daily_run_sessions
+        where challenge_date < (now() at time zone 'UTC')::date - 90;
+    $retention$
+);

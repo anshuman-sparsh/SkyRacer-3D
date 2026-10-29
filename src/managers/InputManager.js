@@ -89,7 +89,7 @@ export class InputManager {
         if (event.target?.closest?.(
             '[data-help-open], [data-help-dialog], [data-leaderboard-open], [data-leaderboard-dialog], ' +
             '[data-submit-score], [data-daily-open], [data-daily-menu], [data-daily-dialog], ' +
-            '[data-daily-submit], [data-classic-mode]'
+            '[data-daily-submit], [data-classic-mode], [data-quick-open], [data-quick-menu]'
         )) return;
         const action = KEY_ACTIONS[event.code];
         if (!action) return;

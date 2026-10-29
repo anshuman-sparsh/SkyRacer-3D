@@ -1,11 +1,22 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="ember">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b0620" />
+  <meta name="theme-color" content="#080808" />
   <link rel="icon" type="image/png" href="/Skyracer3d-favicon.png" />
-  <title>SkyRacer 3D</title>
+  <title>SkyRacer 3D — Flight Ready</title>
+  <meta name="description" content="Fly your hovercraft through glowing rings, dodge barriers, and chase the daily SkyRacer leaderboard." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&amp;family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet" />
+  <script>
+    // Apply the saved palette before CSS paints. Never depend on localStorage.
+    try {
+      document.documentElement.dataset.theme =
+        localStorage.getItem('skyracer_theme_v2') === 'neon' ? 'neon' : 'ember';
+    } catch { document.documentElement.dataset.theme = 'ember'; }
+  </script>
   <style>
     :root {
       --neon: #5ef0ff;
@@ -212,6 +223,7 @@
     @media (max-width: 767px) and (orientation: landscape) { .touch-hint { padding-block: 5px; } .touch-boost { min-height: 40px; } }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; } }
   </style>
+  <link rel="stylesheet" href="/src/styles/racing-ui.css" />
 </head>
 <body>
   <div id="app"></div>
@@ -245,8 +257,13 @@
   <div class="touch-indicator" data-touch-indicator aria-hidden="true"><span class="touch-indicator__thumb" data-touch-indicator-thumb></span></div>
   <div class="state-overlay" data-state-overlay>
     <div class="state-overlay__content glass-panel">
-      <h1 class="state-overlay__title is-pulsing" data-state-title>PRESS ANY KEY TO START</h1>
-      <p class="state-overlay__message" data-state-message>SKYRACER FLIGHT SYSTEM READY</p>
+      <div class="state-overlay__hero" data-overlay-hero>
+        <div class="state-overlay__eyebrow">FLIGHT SYSTEM // READY</div>
+        <div class="state-overlay__wordmark" aria-label="SkyRacer">SKY<span>RACER</span></div>
+        <p class="state-overlay__strapline">Fly through the rings. Dodge the barriers. Own the skies.</p>
+      </div>
+      <h1 class="state-overlay__title is-pulsing" data-state-title>READY FOR TAKEOFF</h1>
+      <p class="state-overlay__message" data-state-message>Use WASD / arrows to steer. Hold Space or Shift to boost.</p>
       <ul class="state-overlay__stats" data-state-stats hidden>
         <li><span>Final Score</span><strong data-final-score>0</strong></li>
         <li><span>Rings</span><strong data-final-rings>0</strong></li>
@@ -255,14 +272,26 @@
         <p class="state-overlay__best" data-overlay-best>Best Score <strong data-overlay-best-value>0</strong></p>
         <p class="state-overlay__best" data-overlay-best-rings>Best Rings <strong data-overlay-best-rings-value>0</strong></p>
       </div>
-      <button class="state-overlay__action" type="button" data-restart hidden>RESTART</button>
-      <button class="state-overlay__action" type="button" data-submit-score hidden>SUBMIT SCORE</button>
       <p class="daily-own-overlay" data-daily-own-overlay hidden></p>
-      <button class="state-overlay__action" type="button" data-daily-submit hidden>SUBMIT DAILY SCORE</button>
-      <button class="daily-action" type="button" data-daily-menu hidden>🏆 DAILY CHALLENGE</button>
-      <button class="daily-action" type="button" data-classic-mode hidden>RETURN TO CLASSIC</button>
+      <div class="state-overlay__actions">
+        <button class="state-overlay__action is-primary" type="button" data-start-flight>START FLIGHT</button>
+        <button class="state-overlay__action is-primary" type="button" data-restart hidden>FLY AGAIN</button>
+        <button class="state-overlay__action" type="button" data-submit-score hidden>SUBMIT SCORE</button>
+        <button class="state-overlay__action" type="button" data-daily-submit hidden>SUBMIT DAILY SCORE</button>
+        <button class="daily-action" type="button" data-daily-menu hidden>DAILY CHALLENGE</button>
+        <button class="daily-action" type="button" data-classic-mode hidden>RETURN TO CLASSIC</button>
+      </div>
     </div>
   </div>
+  <button class="quick-menu-trigger" type="button" data-quick-open aria-expanded="false" aria-controls="skyracer-quick-menu" aria-label="Open game menu">MENU</button>
+  <nav class="quick-menu" id="skyracer-quick-menu" data-quick-menu aria-label="SkyRacer navigation" hidden>
+    <div class="quick-menu__eyebrow">PILOT CONTROL</div>
+    <button type="button" data-quick-help>Help &amp; controls</button>
+    <button type="button" data-quick-leaderboard>All-time leaderboard</button>
+    <button type="button" data-quick-daily>Daily challenge</button>
+    <div class="quick-menu__divider" role="separator"></div>
+    <button class="quick-menu__theme-button" type="button" data-theme-toggle>APPEARANCE · Neon / Cyan</button>
+  </nav>
   <button class="help-open" type="button" data-help-open aria-haspopup="dialog" aria-controls="how-to-play-dialog">? HOW TO PLAY</button>
   <dialog class="help-dialog" id="how-to-play-dialog" data-help-dialog aria-labelledby="help-dialog-title">
     <div class="help-dialog__head">
@@ -306,6 +335,7 @@
         <p>Use <strong>Audio On / Off</strong> to turn game sounds on or off.</p>
       </section>
     </div>
+    <p class="help-dialog__note">Choose orange-and-black or neon-and-cyan from the Menu. Appearance changes never affect scores, controls, or your saved records.</p>
     <p class="help-dialog__note">Gameplay analytics use pseudonymous player and session IDs to count runs and results. Event records contain no nickname or IP address.</p>
     <p class="help-dialog__note">Opening this guide during a run pauses the game. Close it, then choose Resume to keep flying.</p>
   </dialog>

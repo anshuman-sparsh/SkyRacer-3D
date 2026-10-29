@@ -302,7 +302,8 @@ function updateModeDisplays() {
         dailyOwnOverlay.textContent = dailyLastError
             ? dailyLastError
             : (dailyPersonalBest != null
-                ? 'Today’s best: ' + Number(dailyPersonalBest).toLocaleString()
+                ? 'Challenge ' + (activeDailyRun?.date ?? dailyPanel.today?.date ?? 'UTC')
+                    + ' best: ' + Number(dailyPersonalBest).toLocaleString()
                 : 'Daily best: waiting for your first successful submission');
         if (gameState === 'start') stateTitle.textContent = 'DAILY CHALLENGE — READY';
         if (gameState === 'paused') stateTitle.textContent = 'DAILY CHALLENGE PAUSED';

@@ -37,21 +37,39 @@ test('same day and version generate identical placements regardless of earlier r
 });
 
 test('track reset replays exact daily ring and obstacle positions', () => {
-    const scene = new THREE.Scene();
-    const track = new TrackManager(scene, {
-        random: createDailyRandom('2026-10-29'), aheadDistance: 400,
-    });
-    const snapshot = () => ({
-        rings: track.energyRings.map((r) => [r.position.x, r.position.y, r.position.z, r.isSurge]),
-        obstacles: track.obstacles.map((r) => [r.position.x, r.position.y, r.position.z]),
-    });
-    const first = snapshot();
-    assert.ok(first.rings.length > 0);
-    track.reset({ random: createDailyRandom('2026-10-29') });
-    assert.deepEqual(snapshot(), first);
-    track.reset({ random: createDailyRandom('2026-10-30') });
-    assert.notDeepEqual(snapshot(), first);
-    track.destroy();
+    // TrackSegment renders a shared procedural CanvasTexture. Supply only the
+    // 2D canvas methods it needs; tests still run without a browser.
+    const previousDocument = globalThis.document;
+    const context = {
+        fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {},
+    };
+    globalThis.document = {
+        createElement: (tag) => {
+            assert.equal(tag, 'canvas');
+            return { width: 256, height: 256, getContext: () => context };
+        },
+    };
+    let track;
+    try {
+        const scene = new THREE.Scene();
+        track = new TrackManager(scene, {
+            random: createDailyRandom('2026-10-29'), aheadDistance: 400,
+        });
+        const snapshot = () => ({
+            rings: track.energyRings.map((r) => [r.position.x, r.position.y, r.position.z, r.isSurge]),
+            obstacles: track.obstacles.map((r) => [r.position.x, r.position.y, r.position.z]),
+        });
+        const first = snapshot();
+        assert.ok(first.rings.length > 0);
+        track.reset({ random: createDailyRandom('2026-10-29') });
+        assert.deepEqual(snapshot(), first);
+        track.reset({ random: createDailyRandom('2026-10-30') });
+        assert.notDeepEqual(snapshot(), first);
+    } finally {
+        track?.destroy();
+        if (previousDocument === undefined) delete globalThis.document;
+        else globalThis.document = previousDocument;
+    }
 });
 
 test('daily ScoreManager never changes Classic persisted records', () => {

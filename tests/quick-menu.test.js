@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { QuickMenu } from '../src/ui/QuickMenu.js';
 
 class FakeElement {
@@ -104,7 +105,6 @@ test('unavailable leaderboard or Daily are disabled without affecting help or th
 });
 
 test('all quick-menu DOM hooks exist and no gameplay source files are modified for theme colors', () => {
-    const { readFileSync } = requireShim();
     const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
     const controller = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
     for (const attribute of ['quick-open', 'quick-menu', 'quick-help',
@@ -115,7 +115,3 @@ test('all quick-menu DOM hooks exist and no gameplay source files are modified f
     assert.match(controller, /const themeController = new ThemeController\(\)/);
     assert.match(controller, /const quickMenu = new QuickMenu/);
 });
-function requireShim() {
-    // Kept as a helper so this test remains a simple ESM import.
-    return { readFileSync: (url, encoding) => { throw Error('Import fs at file top.'); } };
-}

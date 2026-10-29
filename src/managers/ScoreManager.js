@@ -25,15 +25,16 @@ function readStoredRecord(key) {
 }
 
 export class ScoreManager {
-    constructor({ ringBonus = RING_BONUS_POINTS } = {}) {
+    constructor({ ringBonus = RING_BONUS_POINTS, recordsEnabled = true } = {}) {
+        this.recordsEnabled = recordsEnabled;
         this.distance = 0;
         this.currentVelocity = 0;
         this.ringsCollected = 0;
         this.score = 0;
         this.ringBonus = ringBonus;
 
-        this.highScore = readStoredRecord(HIGH_SCORE_KEY);
-        this.bestRings = readStoredRecord(BEST_RINGS_KEY);
+        this.highScore = recordsEnabled ? readStoredRecord(HIGH_SCORE_KEY) : 0;
+        this.bestRings = recordsEnabled ? readStoredRecord(BEST_RINGS_KEY) : 0;
         this.isStorageAvailable = true;
         this.timeSincePersist = 0;
         this.hasUnsavedHighScore = false;
@@ -58,6 +59,7 @@ export class ScoreManager {
     }
 
     #trackHighScore() {
+        if (!this.recordsEnabled) return;
         const current = this.currentScore;
         if (current <= this.highScore) return;
 
@@ -67,6 +69,7 @@ export class ScoreManager {
 
     /** Flushes pending all-time records to localStorage. Safe to call at any time. */
     persistRecords() {
+        if (!this.recordsEnabled) return;
         this.timeSincePersist = 0;
         if (!this.hasUnsavedRecords || !this.isStorageAvailable) return;
 
@@ -99,11 +102,11 @@ export class ScoreManager {
     }
 
     get isNewHighScore() {
-        return this.currentScore > 0 && this.currentScore >= this.highScore;
+        return this.recordsEnabled && this.currentScore > 0 && this.currentScore >= this.highScore;
     }
 
     get isNewBestRings() {
-        return this.ringsCollected > 0 && this.ringsCollected >= this.bestRings;
+        return this.recordsEnabled && this.ringsCollected > 0 && this.ringsCollected >= this.bestRings;
     }
 
     /** Clears run statistics for a restart. The persisted best is retained. */
@@ -122,7 +125,7 @@ export class ScoreManager {
             this.score += this.ringBonus;
         }
         this.#trackHighScore();
-        if (this.ringsCollected > this.bestRings) {
+        if (this.recordsEnabled && this.ringsCollected > this.bestRings) {
             this.bestRings = this.ringsCollected;
             this.hasUnsavedBestRings = true;
         }

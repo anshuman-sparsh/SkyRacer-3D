@@ -151,6 +151,34 @@ export class LeaderboardService {
         return data?.accepted === true;
     }
 
+    /**
+     * Separate mode endpoint, but the identical anonymous Supabase identity.
+     * No new login, token storage, or privileged client credentials.
+     */
+    async requestDailyChallenge(method = 'GET', payload = null, retry = true) {
+        if (!this.enabled) throw new Error('Daily Challenge requires a connection.');
+        const session = await this.#ensureSession();
+        const response = await this.fetchImpl(this.url + '/functions/v1/daily-challenge', {
+            method,
+            headers: {
+                apikey: this.key,
+                Authorization: 'Bearer ' + session.access_token,
+                ...(payload ? { 'Content-Type': 'application/json' } : {}),
+            },
+            ...(payload ? { body: JSON.stringify(payload) } : {}),
+            cache: 'no-store',
+        });
+        if (response.status === 401 && retry) {
+            await this.#ensureSession(true);
+            return this.requestDailyChallenge(method, payload, false);
+        }
+        return asJson(response);
+    }
+
+    rememberNickname(nickname) {
+        if (/^[A-Za-z0-9_]{3,16}$/.test(nickname)) this.#save(NAME_KEY, nickname);
+    }
+
     async beginRun() {
         if (!this.enabled) return null;
         const result = await this.#request('POST', { action: 'start' });

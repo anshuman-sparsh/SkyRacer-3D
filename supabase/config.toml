@@ -6,3 +6,6 @@ verify_jwt = true
 
 [functions.game-events]
 verify_jwt = true
+
+[functions.daily-challenge]
+verify_jwt = true

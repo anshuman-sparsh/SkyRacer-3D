@@ -4,6 +4,7 @@ import { CameraDynamics, createCamera } from './core/Camera.js';
 import { createRenderer, resizeRenderer } from './core/Renderer.js';
 import { createScene } from './core/Scene.js';
 import { disposeEnergyRingResources } from './entities/EnergyRing.js';
+import { disposeBlackRingResources } from './entities/BlackRing.js';
 import { disposeGroundAnchorResources } from './entities/GroundAnchor.js';
 import { HoverCraft } from './entities/HoverCraft.js';
 import { RingGuidance } from './entities/RingGuidance.js';
@@ -17,6 +18,12 @@ import { InputManager } from './managers/InputManager.js';
 import { ScoreManager } from './managers/ScoreManager.js';
 import { RingCollectionDeadline } from './managers/RingCollectionDeadline.js';
 import { LeaderboardService } from './services/LeaderboardService.js';
+import { DailyChallengeService } from './services/DailyChallengeService.js';
+import { DailyChallengePanel } from './ui/DailyChallengePanel.js';
+import { ThemeController } from './ui/ThemeController.js';
+import { QuickMenu } from './ui/QuickMenu.js';
+import { shouldToggleFlightPause } from './ui/FlightKeyPolicy.js';
+import { createDailyRandom } from './utils/DailyChallenge.js';
 import { GameplayAnalyticsService } from './services/GameplayAnalyticsService.js';
 import { formatLeaderboardName } from './utils/LeaderboardDisplay.js';
 import { TrackManager } from './managers/TrackManager.js';
@@ -52,9 +59,12 @@ const ringGuidance = new RingGuidance();
 const collisionDebug = new URLSearchParams(window.location.search).get('debugHitboxes') === '1'
     ? new CollisionDebug(scene, hovercraft, trackManager)
     : null;
-const scoreManager = new ScoreManager();
+const classicScoreManager = new ScoreManager();
+const dailyScoreManager = new ScoreManager({ recordsEnabled: false });
+let scoreManager = classicScoreManager;
 const ringCollectionDeadline = new RingCollectionDeadline();
 const leaderboard = new LeaderboardService();
+const dailyService = new DailyChallengeService(leaderboard);
 const analytics = new GameplayAnalyticsService({
     submitEvent: leaderboard.enabled ? (event) => leaderboard.sendGameplayEvent(event) : null,
 });
@@ -76,11 +86,14 @@ const boostElement = document.querySelector('[data-boost]');
 const boostFillElement = document.querySelector('[data-boost-fill]');
 const speedLinesElement = document.querySelector('[data-speed-lines]');
 const stateOverlay = document.querySelector('[data-state-overlay]');
+const overlayHero = document.querySelector('[data-overlay-hero]');
+const startFlightButton = document.querySelector('[data-start-flight]');
 const stateTitle = document.querySelector('[data-state-title]');
 const stateMessage = document.querySelector('[data-state-message]');
 const stateStats = document.querySelector('[data-state-stats]');
 const finalScoreElement = document.querySelector('[data-final-score]');
 const finalRingsElement = document.querySelector('[data-final-rings]');
+const finalDistanceElement = document.querySelector('[data-final-distance]');
 const bestBadgeElement = document.querySelector('[data-best-badge]');
 const bestElement = document.querySelector('[data-best]');
 const bestRingsBadgeElement = document.querySelector('[data-best-rings-badge]');
@@ -90,6 +103,7 @@ const overlayBestValueElement = document.querySelector('[data-overlay-best-value
 const overlayBestRingsElement = document.querySelector('[data-overlay-best-rings]');
 const overlayBestRingsValueElement = document.querySelector('[data-overlay-best-rings-value]');
 const restartButton = document.querySelector('[data-restart]');
+const exitMenuButton = document.querySelector('[data-exit-menu]');
 const audioButton = document.querySelector('[data-audio-toggle]');
 const pauseButton = document.querySelector('[data-pause-toggle]');
 const pauseLabel = document.querySelector('[data-pause-label]');
@@ -109,6 +123,10 @@ const leaderboardNickname = document.querySelector('[data-leaderboard-nickname]'
 const leaderboardNicknameLabel = document.querySelector('[data-leaderboard-nickname-label]');
 const leaderboardSendButton = document.querySelector('[data-leaderboard-send]');
 const scoreSubmitButton = document.querySelector('[data-submit-score]');
+const dailySubmitButton = document.querySelector('[data-daily-submit]');
+const classicModeButton = document.querySelector('[data-classic-mode]');
+const dailyOwnOverlay = document.querySelector('[data-daily-own-overlay]');
+const modeLabel = document.querySelector('[data-mode-label]');
 const touchIndicator = document.querySelector('[data-touch-indicator]');
 const touchIndicatorThumb = document.querySelector('[data-touch-indicator-thumb]');
 
@@ -121,6 +139,11 @@ const inputManager = new InputManager(window, {
 
 let animationFrameId = 0;
 let gameState = 'start';
+let gameMode = 'classic';
+let activeDailyRun = null;
+let dailySubmitting = false;
+let dailyPersonalBest = null;
+let dailyLastError = '';
 let activeRunSeconds = 0;
 let startTransitionPending = false;
 let wasBoosting = false;
@@ -145,6 +168,29 @@ let lastBestRingsRecord = false;
 let onlineRunPromise = null;
 let onlineSubmitted = false;
 let leaderboardReturnFocus = leaderboardButton;
+const dailyPanel = new DailyChallengePanel({
+    service: dailyService,
+    onPlay: launchDailyChallenge,
+    onSubmit: submitDailyScore,
+    onOpen: () => { if (gameState === 'running') setGameState('paused'); },
+    canPlay: () => !startTransitionPending && (gameState === 'start' || gameState === 'terminated'),
+    canSubmit: () => gameMode === 'daily' && gameState === 'terminated'
+        && scoreManager.currentScore > 0 && Boolean(activeDailyRun) && !activeDailyRun.submitted
+        && !dailySubmitting,
+});
+const themeController = new ThemeController();
+const quickMenu = new QuickMenu({
+    onOpen: () => {
+        if (gameState === 'running') setGameState('paused');
+    },
+    onHelp: openHelp,
+    getAudioEnabled: () => !audioEngine.muted,
+    onAudioChange: setAudioEnabled,
+    onLeaderboard: () => openLeaderboard({ currentTarget: quickMenu.trigger }),
+    onDaily: () => dailyPanel.open({ currentTarget: quickMenu.trigger }),
+    canLeaderboard: () => leaderboard.enabled,
+    canDaily: () => dailyService.enabled,
+});
 leaderboardButton.hidden = !leaderboard.enabled;
 
 // Touch devices have no keyboard, so the prompts must name the gesture that works.
@@ -152,15 +198,18 @@ const isTouchPrimary = window.matchMedia('(pointer: coarse)').matches;
 
 const STATE_COPY = {
     start: [
-        isTouchPrimary ? 'TAP TO START' : 'PRESS ANY KEY TO START',
-        'COLLECT A RING EVERY 30 SECONDS • GREEN MARKER = ALIGNED',
+        'READY FOR TAKEOFF',
+        isTouchPrimary
+            ? 'Drag to steer. Hold BOOST to surge. Collect a ring every 30 seconds.'
+            : 'WASD / arrows to steer · Space / Shift to boost · Collect a ring every 30 seconds.',
     ],
     paused: [
-        'GAME PAUSED',
-        isTouchPrimary ? 'TAP ANYWHERE OR PRESS RESUME' : 'PRESS P OR RESUME TO CONTINUE',
+        'FLIGHT PAUSED',
+        isTouchPrimary ? 'Tap RESUME FLIGHT to continue.' : 'Press P or select RESUME FLIGHT to continue.',
     ],
-    terminated: ['FLIGHT TERMINATED', 'NAVIGATION BARRIER CONTACT'],
-    ringTimeout: ['FLIGHT TERMINATED', 'NO RING COLLECTED FOR 30 SECONDS'],
+    terminated: ['FLIGHT ENDED', 'Navigation barrier contact. Ready for another run?'],
+    ringTimeout: ['FLIGHT ENDED', 'No ring collected within 30 seconds. Try another route.'],
+    blackRing: ['BLACK RING HIT', 'Flight ended. You keep your earned score and rings — just like a barrier collision.'],
 };
 
 function updateRingDeadlineDisplay() {
@@ -185,7 +234,7 @@ function setGameState(nextState, terminationReason = 'collision') {
     gameState = nextState;
     if (nextState === 'terminated' && !wasTerminated) {
         analytics.trackRunEnd({
-            mode: 'classic',
+            mode: gameMode,
             score: scoreManager.currentScore,
             rings: scoreManager.ringsCollected,
             distance: scoreManager.distance,
@@ -196,6 +245,11 @@ function setGameState(nextState, terminationReason = 'collision') {
     updateRingDeadlineDisplay();
     const isRunning = nextState === 'running';
     const isTerminated = nextState === 'terminated';
+    const isStart = nextState === 'start';
+    stateOverlay.dataset.state = nextState;
+    overlayHero.hidden = !isStart;
+    startFlightButton.hidden = !(isStart || nextState === 'paused');
+    startFlightButton.textContent = nextState === 'paused' ? 'RESUME FLIGHT' : 'START FLIGHT';
     if (!isRunning) ringGuidance.hide();
 
     stateOverlay.hidden = isRunning;
@@ -204,7 +258,9 @@ function setGameState(nextState, terminationReason = 'collision') {
 
     stateStats.hidden = !isTerminated;
     restartButton.hidden = !isTerminated;
-    scoreSubmitButton.hidden = !isTerminated || !leaderboard.enabled || onlineSubmitted;
+    exitMenuButton.hidden = !isTerminated;
+    scoreSubmitButton.hidden = gameMode !== 'classic'
+        || !isTerminated || !leaderboard.enabled || onlineSubmitted;
     stateTitle.classList.toggle('is-alert', isTerminated);
     stateTitle.classList.toggle('is-pulsing', !isTerminated);
 
@@ -218,6 +274,7 @@ function setGameState(nextState, terminationReason = 'collision') {
         scoreManager.persistRecords();
         finalScoreElement.textContent = scoreManager.currentScore.toLocaleString();
         finalRingsElement.textContent = scoreManager.ringsCollected.toString();
+        finalDistanceElement.textContent = scoreManager.distance.toFixed(1);
         restartButton.focus();
     }
 
@@ -226,17 +283,150 @@ function setGameState(nextState, terminationReason = 'collision') {
         isTerminated && scoreManager.isNewBestRings,
     );
 
-    const copy = nextState === 'terminated' && terminationReason === 'ring-timeout'
-        ? STATE_COPY.ringTimeout
+    const copy = nextState === 'terminated'
+        ? (terminationReason === 'ring-timeout'
+            ? STATE_COPY.ringTimeout
+            : terminationReason === 'black-ring'
+                ? STATE_COPY.blackRing
+                : STATE_COPY.terminated)
         : STATE_COPY[nextState];
     if (copy) {
         stateTitle.textContent = copy[0];
         stateMessage.textContent = copy[1];
     }
 
+    updateModeDisplays();
+    if (isTerminated && gameMode === 'daily' && activeDailyRun
+        && !activeDailyRun.submitted && activeDailyRun.nickname
+        && scoreManager.currentScore > 0) {
+        // A server-registered nickname allows fully automatic daily submissions.
+        // New pilots choose their permanent nickname from the Daily panel.
+        void submitDailyScore(activeDailyRun.nickname).catch((error) => {
+            dailyLastError = error.message;
+            updateModeDisplays();
+        });
+    }
+
     if (!isRunning) {
         speedLinesElement.style.opacity = '0';
         speedLinesElement.classList.remove('is-active');
+    }
+}
+
+/** Daily's local score and course are isolated from the Classic leaderboard. */
+function updateModeDisplays() {
+    const daily = gameMode === 'daily';
+    modeLabel.textContent = daily && activeDailyRun
+        ? 'DAILY CHALLENGE // ' + activeDailyRun.date
+        : daily ? 'DAILY CHALLENGE' : 'SKYRACER // FLIGHT 01';
+    modeLabel.classList.toggle('is-daily', daily);
+    bestBadgeElement.hidden = daily;
+    bestRingsBadgeElement.hidden = daily;
+    overlayBestElement.hidden = daily;
+    overlayBestRingsElement.hidden = daily;
+
+    const canShowOptions = gameState === 'start' || gameState === 'terminated';
+    const canSubmit = daily && gameState === 'terminated'
+        && scoreManager.currentScore > 0 && Boolean(activeDailyRun)
+        && !activeDailyRun.submitted && !dailySubmitting;
+    dailySubmitButton.hidden = !canSubmit;
+    classicModeButton.hidden = !daily || !canShowOptions;
+    dailyPanel.openButtons[1].hidden = !dailyService.enabled || daily || !canShowOptions;
+    dailyOwnOverlay.hidden = !daily;
+    if (daily) {
+        dailyOwnOverlay.textContent = dailyLastError
+            ? dailyLastError
+            : (dailyPersonalBest != null
+                ? 'Challenge ' + (activeDailyRun?.date ?? dailyPanel.today?.date ?? 'UTC')
+                    + ' best: ' + Number(dailyPersonalBest).toLocaleString()
+                : 'Daily best: waiting for your first successful submission');
+        if (gameState === 'start') stateTitle.textContent = 'DAILY CHALLENGE — READY';
+        if (gameState === 'paused') stateTitle.textContent = 'DAILY CHALLENGE PAUSED';
+        if (gameState === 'terminated') stateTitle.textContent = 'DAILY RUN ENDED';
+    }
+    dailyPanel.updateActions();
+}
+
+function resetForNewMode() {
+    scoreManager.reset();
+    ringCollectionDeadline.reset();
+    hovercraft.reset();
+    trackManager.reset({ random: Math.random });
+    cameraDynamics.snapTo(hovercraft);
+    wasBoosting = false;
+    activeRunSeconds = 0;
+    onlineRunPromise = null;
+    onlineSubmitted = false;
+    lastBestText = '';
+    lastBestRingsText = '';
+    lastBestRecord = false;
+    lastBestRingsRecord = false;
+    updateHud();
+    setGameState('start');
+}
+
+function backToMainMenu() {
+    if (startTransitionPending || gameState !== 'terminated') return;
+    if (gameMode === 'daily') {
+        returnToClassic();
+    } else {
+        resetForNewMode();
+    }
+}
+
+function returnToClassic() {
+    if (startTransitionPending || gameMode !== 'daily'
+        || (gameState !== 'start' && gameState !== 'terminated')) return;
+    activeDailyRun = null;
+    dailySubmitting = false;
+    dailyLastError = '';
+    gameMode = 'classic';
+    scoreManager = classicScoreManager;
+    resetForNewMode();
+}
+
+/** Only the server chooses the UTC date and course version. */
+async function launchDailyChallenge() {
+    if (startTransitionPending || (gameState !== 'start' && gameState !== 'terminated')) return false;
+    if (gameMode !== 'daily') {
+        gameMode = 'daily';
+        scoreManager = dailyScoreManager;
+    }
+    activeDailyRun = null;
+    dailyPersonalBest = dailyPanel.today?.me?.score ?? null;
+    dailyLastError = '';
+    resetForNewMode();
+    return startRunning();
+}
+
+async function submitDailyScore(nickname) {
+    if (dailySubmitting || gameMode !== 'daily' || gameState !== 'terminated'
+        || !activeDailyRun || activeDailyRun.submitted
+        || scoreManager.currentScore < 1) {
+        throw new Error('No completed daily run is available to submit.');
+    }
+    const run = activeDailyRun;
+    dailySubmitting = true;
+    updateModeDisplays();
+    try {
+        const result = await dailyService.finish(run, {
+            nickname, score: scoreManager.currentScore,
+            rings: scoreManager.ringsCollected, distance: scoreManager.distance,
+        });
+        dailyPersonalBest = result.personalBest;
+        dailyLastError = '';
+        if (activeDailyRun === run) {
+            updateModeDisplays();
+            if (dailyPanel.dialog.open) void dailyPanel.refresh();
+        }
+        return result;
+    } catch (error) {
+        dailyLastError = error.message;
+        if (activeDailyRun === run) updateModeDisplays();
+        throw error;
+    } finally {
+        dailySubmitting = false;
+        if (activeDailyRun === run) updateModeDisplays();
     }
 }
 
@@ -252,19 +442,53 @@ function beginOnlineRun() {
 }
 
 async function startRunning() {
-    // Avoid counting duplicate taps or key presses while audio is starting.
-    if (startTransitionPending || gameState === 'running') return;
+    // Ignore duplicate clicks and key presses during async run registration.
+    if (startTransitionPending || gameState === 'running') return false;
     startTransitionPending = true;
     const isNewRun = gameState === 'start' || gameState === 'terminated';
     try {
-        if (gameState === 'start') beginOnlineRun();
-        await audioEngine.start();
+        // Start audio while still handling the user's gesture on mobile.
+        const audioPromise = audioEngine.start();
+        if (isNewRun && gameMode === 'daily') {
+            if (!activeDailyRun || activeDailyRun.submitted) {
+                activeDailyRun = await dailyService.begin();
+            }
+            // An old open leaderboard can straddle midnight; trust the
+            // server-issued date, never yesterday's cached personal best.
+            if (dailyPanel.today?.date !== activeDailyRun.date) dailyPersonalBest = null;
+            trackManager.reset({
+                random: createDailyRandom(activeDailyRun.date, activeDailyRun.courseVersion),
+            });
+            ringCollectionDeadline.reset();
+            scoreManager.reset();
+            hovercraft.reset();
+            cameraDynamics.snapTo(hovercraft);
+            dailyLastError = '';
+            updateHud();
+        } else if (gameState === 'start' && gameMode === 'classic') {
+            beginOnlineRun();
+        }
+        await audioPromise;
         setGameState('running');
         clock.getDelta();
+        if (!dailyPanel.dialog.open
+            && document.activeElement?.matches?.(
+                '[data-daily-open], [data-daily-menu], [data-quick-open], ' +
+                '[data-start-flight], [data-restart], [data-pause-toggle]'
+            )) {
+            renderer.domElement.tabIndex = 0;
+            renderer.domElement.focus({ preventScroll: true });
+        }
         if (isNewRun) {
             activeRunSeconds = 0;
-            analytics.trackRunStart('classic');
+            analytics.trackRunStart(gameMode);
         }
+        return true;
+    } catch (error) {
+        dailyLastError = error.message;
+        updateModeDisplays();
+        console.error('[SkyRacer] Could not start the run:', error);
+        return false;
     } finally {
         startTransitionPending = false;
     }
@@ -286,49 +510,25 @@ function restartRun() {
     ringCollectionDeadline.reset();
     updateRingDeadlineDisplay();
     hovercraft.reset();
-    trackManager.reset();
+    if (gameMode === 'daily') {
+        activeDailyRun = null;
+        dailyLastError = '';
+        trackManager.reset({ random: Math.random }); // Seeded reset occurs once the server registers the retry.
+    } else {
+        trackManager.reset({ random: Math.random });
+        beginOnlineRun();
+    }
     cameraDynamics.snapTo(hovercraft);
     wasBoosting = false;
-    beginOnlineRun();
     updateHud();
     void startRunning();
 }
 
-async function handleGameKey(event) {
-    // Help is a native modal. Opening it with Enter must not start the game,
-    // and keys pressed while reading the guide must not resume gameplay.
-    if (helpDialog.open || leaderboardDialog.open) return;
-    // Enter/Space should activate focused UI controls, not start a run.
-    // Other gameplay keys must still work after the player closes Help.
-    if ((event.code === 'Enter' || event.code === 'Space')
-        && event.target?.closest?.('[data-help-open], [data-leaderboard-open], [data-submit-score]')) return;
-    if (event.repeat) return;
-
-    if (gameState === 'start') {
-        await startRunning();
-        return;
-    }
-
-    if (gameState === 'terminated') {
-        if (event.code === 'Enter' || event.code === 'Space') restartRun();
-        return;
-    }
-
-    if (event.code === 'Escape' || event.code === 'KeyP') togglePause();
-}
-
-/**
- * Starts or resumes from a tap, which is the only way in on touch devices.
- * The terminated screen is excluded so a stray tap cannot skip the results.
- */
-function handleOverlayPointerDown(event) {
-    if (event.target.closest('button')) return;
-
-    if (gameState === 'start') {
-        void startRunning();
-    } else if (gameState === 'paused') {
-        togglePause();
-    }
+function handleGameKey(event) {
+    // A new flight or retry starts exclusively from START FLIGHT or FLY AGAIN,
+    // not arbitrary keys, arrow movement or taps on the overlay.
+    if (helpDialog.open || leaderboardDialog.open || dailyPanel.dialog.open || quickMenu.opened) return;
+    if (shouldToggleFlightPause(gameState, event.code, event.repeat)) togglePause();
 }
 
 function openHelp() {
@@ -345,14 +545,14 @@ function closeHelp() {
 }
 
 function restoreHelpFocus() {
-    helpButton.focus({ preventScroll: true });
+    quickMenu.trigger.focus({ preventScroll: true });
 }
 
 function openLeaderboard(event) {
     if (!leaderboard.enabled || leaderboardDialog.open) return;
     leaderboardReturnFocus = event?.currentTarget ?? leaderboardButton;
     if (gameState === 'running') setGameState('paused');
-    leaderboardForm.hidden = gameState !== 'terminated' || onlineSubmitted;
+    leaderboardForm.hidden = gameMode !== 'classic' || gameState !== 'terminated' || onlineSubmitted;
     leaderboardNickname.value = leaderboard.getNickname();
     leaderboardNickname.readOnly = false;
     leaderboardNicknameLabel.textContent = 'Your pilot nickname (3–16 letters, numbers or underscores)';
@@ -366,8 +566,7 @@ function closeLeaderboard() {
 }
 
 function restoreLeaderboardFocus() {
-    const target = leaderboardReturnFocus?.hidden ? leaderboardButton : leaderboardReturnFocus;
-    target?.focus?.({ preventScroll: true });
+    quickMenu.trigger.focus({ preventScroll: true });
 }
 
 async function refreshLeaderboard() {
@@ -411,7 +610,7 @@ async function refreshLeaderboard() {
         const previousBest = response?.me ? Number(response.me.score) : null;
         const beatsPreviousBest = previousBest === null
             || scoreManager.currentScore > previousBest;
-        const canSubmit = gameState === 'terminated' && !onlineSubmitted && beatsPreviousBest;
+        const canSubmit = gameMode === 'classic' && gameState === 'terminated' && !onlineSubmitted && beatsPreviousBest;
         leaderboardForm.hidden = !canSubmit;
         scoreSubmitButton.hidden = !canSubmit || !leaderboard.enabled;
         leaderboardStatus.textContent = !beatsPreviousBest && gameState === 'terminated'
@@ -427,7 +626,7 @@ async function refreshLeaderboard() {
 }
 
 async function submitOnlineScore() {
-    if (gameState !== 'terminated' || onlineSubmitted || !leaderboard.enabled) return;
+    if (gameMode !== 'classic' || gameState !== 'terminated' || onlineSubmitted || !leaderboard.enabled) return;
     const nickname = leaderboardNickname.value.trim();
     if (!/^[A-Za-z0-9_]{3,16}$/.test(nickname)) {
         leaderboardStatus.textContent = 'Enter 3–16 letters, numbers, or underscores for your nickname.';
@@ -475,11 +674,17 @@ async function submitOnlineScore() {
     }
 }
 
-async function handleAudioToggle() {
-    const isMuted = await audioEngine.toggleMuted();
+function setAudioEnabled(enabled) {
+    // Sound changes must never resume a paused flight or AudioContext.
+    const isMuted = audioEngine.setMuted(!enabled);
     audioButton.classList.toggle('is-off', isMuted);
-    audioButton.setAttribute('aria-pressed', isMuted.toString());
+    audioButton.setAttribute('aria-pressed', String(isMuted));
     audioButton.querySelector('[data-audio-label]').textContent = isMuted ? 'Audio Off' : 'Audio On';
+    quickMenu.refreshAudio();
+}
+
+function handleAudioToggle() {
+    setAudioEnabled(audioEngine.muted);
 }
 
 /** Mirrors the all-time score and ring records into the HUD and overlay. */
@@ -589,6 +794,7 @@ function animate() {
             collectedSurgeRings,
             nearMisses,
             collided,
+            collisionType,
         } = trackManager.update(delta, hovercraft);
 
         // The countdown uses active-game delta, not wall-clock time. A ring
@@ -619,13 +825,15 @@ function animate() {
             ringsElement.classList.add('is-collected');
         }
 
-        // Either a barrier impact or 30 seconds without collecting a ring
-        // ends the run. Use the established spin-out to stop aircraft motion.
+        // Barrier/black-ring impacts or 30 seconds without a collected ring
+        // end the run. Keep the established spin-out and score semantics.
         if (collided || ringDeadlineExpired) {
             if (!collided) scoreManager.update(delta, hovercraft.velocity);
             hovercraft.spinOut();
             cameraDynamics.addShake(collided ? 1.1 : 0.45);
-            setGameState('terminated', collided ? 'collision' : 'ring-timeout');
+            setGameState('terminated', collided
+                ? (collisionType === 'black-ring' ? 'black-ring' : 'collision')
+                : 'ring-timeout');
             cameraDynamics.update(delta, hovercraft, false);
             audioEngine.update(0, false);
             hudElapsed = HUD_UPDATE_INTERVAL;
@@ -694,6 +902,10 @@ function handleVisibilityChange() {
     if (document.hidden && gameState === 'running') setGameState('paused');
 }
 
+function openDailyResults(event) {
+    dailyPanel.open(event);
+}
+
 function disposeApp() {
     scoreManager.persistRecords();
     analytics.dispose();
@@ -704,7 +916,6 @@ function disposeApp() {
     window.visualViewport?.removeEventListener('resize', handleResize);
     window.removeEventListener('keydown', handleGameKey);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
-    stateOverlay.removeEventListener('pointerdown', handleOverlayPointerDown);
     audioButton.removeEventListener('click', handleAudioToggle);
     helpButton.removeEventListener('click', openHelp);
     helpCloseButton.removeEventListener('click', closeHelp);
@@ -717,6 +928,12 @@ function disposeApp() {
     leaderboardSendButton.removeEventListener('click', submitOnlineScore);
     pauseButton.removeEventListener('click', togglePause);
     restartButton.removeEventListener('click', restartRun);
+    exitMenuButton.removeEventListener('click', backToMainMenu);
+    classicModeButton.removeEventListener('click', returnToClassic);
+    dailySubmitButton.removeEventListener('click', openDailyResults);
+    dailyPanel.dispose();
+    quickMenu.dispose();
+    themeController.dispose();
     inputManager.destroy();
     collisionDebug?.dispose();
     ringGuidance.dispose();
@@ -724,6 +941,7 @@ function disposeApp() {
     trackManager.destroy();
     disposeTrackSegmentResources();
     disposeEnergyRingResources();
+    disposeBlackRingResources();
     disposeObstacleResources();
     scene.remove(starField);
     starField.dispose();
@@ -742,7 +960,6 @@ window.addEventListener('orientationchange', handleResize);
 window.visualViewport?.addEventListener('resize', handleResize);
 window.addEventListener('keydown', handleGameKey);
 document.addEventListener('visibilitychange', handleVisibilityChange);
-stateOverlay.addEventListener('pointerdown', handleOverlayPointerDown);
 audioButton.addEventListener('click', handleAudioToggle);
 helpButton.addEventListener('click', openHelp);
 helpCloseButton.addEventListener('click', closeHelp);
@@ -754,7 +971,13 @@ leaderboardDialog.addEventListener('close', restoreLeaderboardFocus);
 leaderboardRefreshButton.addEventListener('click', refreshLeaderboard);
 leaderboardSendButton.addEventListener('click', submitOnlineScore);
 pauseButton.addEventListener('click', togglePause);
+startFlightButton.addEventListener('click', () => {
+    if (gameState === 'start' || gameState === 'paused') void startRunning();
+});
 restartButton.addEventListener('click', restartRun);
+exitMenuButton.addEventListener('click', backToMainMenu);
+classicModeButton.addEventListener('click', returnToClassic);
+dailySubmitButton.addEventListener('click', openDailyResults);
 window.addEventListener('pagehide', disposeApp, { once: true });
 setGameState('start');
 updateHud();

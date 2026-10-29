@@ -167,7 +167,8 @@ const dailyPanel = new DailyChallengePanel({
     onOpen: () => { if (gameState === 'running') setGameState('paused'); },
     canPlay: () => gameState === 'start' || gameState === 'terminated',
     canSubmit: () => gameMode === 'daily' && gameState === 'terminated'
-        && scoreManager.currentScore > 0 && Boolean(activeDailyRun) && !activeDailyRun.submitted,
+        && scoreManager.currentScore > 0 && Boolean(activeDailyRun) && !activeDailyRun.submitted
+        && !dailySubmitting,
 });
 leaderboardButton.hidden = !leaderboard.enabled;
 
@@ -274,6 +275,112 @@ function setGameState(nextState, terminationReason = 'collision') {
     if (!isRunning) {
         speedLinesElement.style.opacity = '0';
         speedLinesElement.classList.remove('is-active');
+    }
+}
+
+/** Daily's local score and course are isolated from the Classic leaderboard. */
+function updateModeDisplays() {
+    const daily = gameMode === 'daily';
+    modeLabel.textContent = daily && activeDailyRun
+        ? 'SKYRACER // DAILY ' + activeDailyRun.date
+        : daily ? 'SKYRACER // DAILY CHALLENGE' : 'SKYRACER // FLIGHT 01';
+    bestBadgeElement.hidden = daily;
+    bestRingsBadgeElement.hidden = daily;
+    overlayBestElement.hidden = daily;
+    overlayBestRingsElement.hidden = daily;
+
+    const canShowOptions = gameState === 'start' || gameState === 'terminated';
+    const canSubmit = daily && gameState === 'terminated'
+        && scoreManager.currentScore > 0 && Boolean(activeDailyRun)
+        && !activeDailyRun.submitted && !dailySubmitting;
+    dailySubmitButton.hidden = !canSubmit;
+    classicModeButton.hidden = !daily || !canShowOptions;
+    dailyPanel.openButtons[1].hidden = !dailyService.enabled || daily || !canShowOptions;
+    dailyOwnOverlay.hidden = !daily;
+    if (daily) {
+        dailyOwnOverlay.textContent = dailyLastError
+            ? dailyLastError
+            : (dailyPersonalBest != null
+                ? 'Today’s best: ' + Number(dailyPersonalBest).toLocaleString()
+                : 'Daily best: waiting for your first successful submission');
+        if (gameState === 'start') stateTitle.textContent = 'DAILY CHALLENGE — READY';
+        if (gameState === 'paused') stateTitle.textContent = 'DAILY CHALLENGE PAUSED';
+        if (gameState === 'terminated') stateTitle.textContent = 'DAILY RUN ENDED';
+    }
+    dailyPanel.updateActions();
+}
+
+function resetForNewMode() {
+    scoreManager.reset();
+    ringCollectionDeadline.reset();
+    hovercraft.reset();
+    trackManager.reset({ random: Math.random });
+    cameraDynamics.snapTo(hovercraft);
+    wasBoosting = false;
+    activeRunSeconds = 0;
+    onlineRunPromise = null;
+    onlineSubmitted = false;
+    lastBestText = '';
+    lastBestRingsText = '';
+    lastBestRecord = false;
+    lastBestRingsRecord = false;
+    updateHud();
+    setGameState('start');
+}
+
+function returnToClassic() {
+    if (startTransitionPending || gameMode !== 'daily'
+        || (gameState !== 'start' && gameState !== 'terminated')) return;
+    activeDailyRun = null;
+    dailySubmitting = false;
+    dailyLastError = '';
+    gameMode = 'classic';
+    scoreManager = classicScoreManager;
+    resetForNewMode();
+}
+
+/** Only the server chooses the UTC date and course version. */
+async function launchDailyChallenge() {
+    if (startTransitionPending || (gameState !== 'start' && gameState !== 'terminated')) return false;
+    if (gameMode !== 'daily') {
+        gameMode = 'daily';
+        scoreManager = dailyScoreManager;
+    }
+    activeDailyRun = null;
+    dailyPersonalBest = dailyPanel.today?.me?.score ?? null;
+    dailyLastError = '';
+    resetForNewMode();
+    return startRunning();
+}
+
+async function submitDailyScore(nickname) {
+    if (dailySubmitting || gameMode !== 'daily' || gameState !== 'terminated'
+        || !activeDailyRun || activeDailyRun.submitted
+        || scoreManager.currentScore < 1) {
+        throw new Error('No completed daily run is available to submit.');
+    }
+    const run = activeDailyRun;
+    dailySubmitting = true;
+    updateModeDisplays();
+    try {
+        const result = await dailyService.finish(run, {
+            nickname, score: scoreManager.currentScore,
+            rings: scoreManager.ringsCollected, distance: scoreManager.distance,
+        });
+        dailyPersonalBest = result.personalBest;
+        dailyLastError = '';
+        if (activeDailyRun === run) {
+            updateModeDisplays();
+            if (dailyPanel.dialog.open) void dailyPanel.refresh();
+        }
+        return result;
+    } catch (error) {
+        dailyLastError = error.message;
+        if (activeDailyRun === run) updateModeDisplays();
+        throw error;
+    } finally {
+        dailySubmitting = false;
+        if (activeDailyRun === run) updateModeDisplays();
     }
 }
 

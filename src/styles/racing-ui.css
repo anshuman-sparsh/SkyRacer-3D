@@ -618,14 +618,17 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
     padding: 6px 7px;
     overflow: hidden;
   }
-  .score-panel__brand { display: block; font-size: 9px; line-height: 1.1; letter-spacing: .03em; }
+  .score-panel__brand {
+    display: block; font-size: 9px; line-height: 1.1; letter-spacing: .03em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .score-panel__value { font-size: clamp(17px, 4.4vw, 25px); margin-top: 4px; }
   .score-panel__stats { margin-top: 4px; padding-top: 4px; }
   .hud__label { font-size: 10px; letter-spacing: 0; }
   .score-panel__best, .rings-panel__best { font-size: 10px; line-height: 1.1; }
   .score-panel__best strong, .rings-panel__best strong { font-size: 10px; }
   .telemetry { gap: 4px; }
-  .telemetry__row { gap: 4px; grid-template-columns: minmax(46px, 1fr) auto; }
+  .telemetry__row { gap: 4px; grid-template-columns: minmax(46px, 1fr); }
   .boost-panel { min-height: 0; padding: 6px 7px; }
   .boost-panel__head { margin-bottom: 4px; gap: 2px; }
   .boost-panel__status { font-size: 9px; }
@@ -633,7 +636,7 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
   .rings-panel { min-width: 0; padding: 5px 4px; }
   .rings-panel__value { margin-top: 2px; font-size: clamp(17px, 3.5vw, 24px); }
   .rings-panel__best { gap: 2px; margin-top: 3px; }
-  .hud-buttons { gap: 3px; }
+  .hud-buttons { display: none; }
   .hud-button {
     min-height: 30px;
     padding: 2px 5px;

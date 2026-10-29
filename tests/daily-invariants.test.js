@@ -22,7 +22,7 @@ test('Daily UI selectors are actually present in HTML without new heavy assets',
 });
 
 test('daily SQL schema cannot overwrite Classic scores and enforces single best per day', () => {
-    const sql = read('supabase/migrations/20261029140000_daily_challenge.sql');
+    const sql = read('supabase/migrations/20261029114803_daily_challenge.sql');
     assert.match(sql, /primary key \(challenge_date, user_id\)/);
     assert.match(sql, /where excluded\.score > previous\.score/);
     assert.match(sql, /for update/);

@@ -16,7 +16,7 @@ test('UTC course identity rolls over exactly at midnight, independent of device 
     assert.equal(utcChallengeDate(new Date('2026-10-29T23:59:59.999Z')), '2026-10-29');
     assert.equal(utcChallengeDate(new Date('2026-10-30T00:00:00.000Z')), '2026-10-30');
     assert.equal(nextUtcMidnight('2026-10-29'), Date.parse('2026-10-30T00:00:00Z'));
-    assert.equal(DAILY_COURSE_VERSION, 1);
+    assert.equal(DAILY_COURSE_VERSION, 2);
     assert.equal(isValidUtcDate('2026-02-29'), false);
     assert.equal(isValidUtcDate('2028-02-29'), true);
     assert.equal(isValidUtcDate('2026-13-01'), false);
@@ -30,7 +30,7 @@ test('same day and version generate identical placements regardless of earlier r
     assert.deepEqual(Array.from({length: 120}, () => a()),
         Array.from({length: 120}, () => b()));
     const otherDate = createDailyRandom('2026-10-30');
-    const otherVersion = createDailyRandom('2026-10-29', 2);
+    const otherVersion = createDailyRandom('2026-10-29', 1);
     assert.notEqual(createDailyRandom('2026-10-29')(), otherDate());
     assert.notEqual(createDailyRandom('2026-10-29')(), otherVersion());
     assert.throws(() => createDailyRandom('2026-02-30'));
@@ -57,6 +57,7 @@ test('track reset replays exact daily ring and obstacle positions', () => {
         });
         const snapshot = () => ({
             rings: track.energyRings.map((r) => [r.position.x, r.position.y, r.position.z, r.isSurge]),
+            blackRings: track.blackRings.map((r) => [r.position.x, r.position.y, r.position.z]),
             obstacles: track.obstacles.map((r) => [r.position.x, r.position.y, r.position.z]),
         });
         const first = snapshot();

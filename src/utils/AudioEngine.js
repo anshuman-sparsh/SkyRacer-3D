@@ -101,13 +101,21 @@ export class AudioEngine {
         source.stop(now + duration);
     }
 
-    async toggleMuted() {
-        await this.start();
-        this.muted = !this.muted;
-        if (this.masterGain) {
+    /**
+     * Explicit sound state for the menu On/Off control. This must not
+     * create/resume an AudioContext when the game is paused in a menu.
+     */
+    setMuted(muted) {
+        this.muted = Boolean(muted);
+        if (this.masterGain && this.context) {
             this.masterGain.gain.setTargetAtTime(this.muted ? 0 : 0.75, this.context.currentTime, 0.02);
         }
         return this.muted;
+    }
+
+    async toggleMuted() {
+        await this.start();
+        return this.setMuted(!this.muted);
     }
 
     setPaused(paused) {

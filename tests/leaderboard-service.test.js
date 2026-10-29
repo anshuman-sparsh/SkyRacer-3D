@@ -220,3 +220,39 @@ test('missing country proof leaves older scores visible and avoids retry loops',
     assert.equal(requests.filter((r) => r.url === '/api/country').length, 1);
     assert.equal(requests.filter((r) => r.body?.action === 'backfill-country').length, 0);
 });
+
+test('gameplay telemetry reuses anonymous auth, sends small keepalive POST, and is non-authoritative', async () => {
+    const calls = [];
+    const service = new LeaderboardService({
+        url: 'https://game.supabase.co', publishableKey: 'public', storage: storage(),
+        fetchImpl: async (url, init) => {
+            calls.push({ url, init });
+            if (url.endsWith('/signup')) {
+                return json({ access_token: 'jwt', refresh_token: 'refresh', expires_in: 3600 });
+            }
+            if (url.endsWith('/game-events')) return json({ accepted: true });
+            throw new Error('Unexpected request');
+        },
+    });
+    const result = await service.sendGameplayEvent({
+        eventId: '12345678-1234-4234-8234-123456789abc',
+        sessionId: 'aabbccdd-1234-4234-8234-123456789abc',
+        eventName: 'game_start', mode: 'classic',
+    });
+    assert.equal(result, true);
+    assert.equal(calls.filter((call) => call.url.endsWith('/signup')).length, 1);
+    const eventCall = calls.find((call) => call.url.endsWith('/game-events'));
+    assert.equal(eventCall.init.headers.Authorization, 'Bearer jwt');
+    assert.equal(eventCall.init.headers.apikey, 'public');
+    assert.equal(eventCall.init.keepalive, true);
+    assert.equal(JSON.parse(eventCall.init.body).eventName, 'game_start');
+    assert.equal('userId' in JSON.parse(eventCall.init.body), false);
+});
+
+test('telemetry is completely skipped when Supabase is not configured', async () => {
+    const service = new LeaderboardService({
+        url: '', publishableKey: '', storage: storage(),
+        fetchImpl: () => { throw Error('Network unexpectedly used'); },
+    });
+    assert.equal(await service.sendGameplayEvent({ eventName: 'game_start' }), false);
+});

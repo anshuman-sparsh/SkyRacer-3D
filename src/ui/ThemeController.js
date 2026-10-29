@@ -12,8 +12,12 @@ export function getStoredTheme(storage) {
 }
 
 export class ThemeController {
-    constructor({ root = document.documentElement, storage = window.localStorage } = {}) {
+    constructor({ root = document.documentElement, storage } = {}) {
         this.root = root;
+        if (storage === undefined) {
+            try { storage = window.localStorage; }
+            catch { storage = null; }
+        }
         this.storage = storage;
         this.theme = getStoredTheme(storage);
         this.button = document.querySelector('[data-theme-toggle]');

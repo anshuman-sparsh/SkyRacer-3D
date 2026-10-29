@@ -26,6 +26,18 @@ test('quick navigation steals neither Space nor arrow keys from native controls'
         });
         assert.equal(input.state.boost, false);
         assert.equal(blockedDefault, false);
+        // Browser native Space/Enter activation must still work on primary
+        // actions even while global game input listeners are mounted.
+        for (const attr of ['data-start-flight', 'data-restart']) {
+            blockedDefault = false;
+            const button = { closest: (selector) => selector.includes('[' + attr + ']') ? {} : null };
+            keydown({
+                code: 'Space', target: button,
+                preventDefault() { blockedDefault = true; },
+            });
+            assert.equal(blockedDefault, false, attr + ' must keep native click behavior');
+            assert.equal(input.state.boost, false);
+        }
 
         const canvas = { closest: () => null };
         keydown({

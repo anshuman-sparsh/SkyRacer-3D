@@ -162,6 +162,10 @@
       .daily-action { padding: 9px 12px; }
     }
     .state-overlay__best[hidden], .score-panel__best[hidden], .rings-panel__best[hidden] { display: none; }
+    /* Keep the active game mode recognizable even with compact mobile HUD. */
+    @media (max-width: 767px) {
+      .score-panel__brand.is-daily { display: block; font-size: clamp(7px, 1.8vw, 9px); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    }
     @keyframes ring-deadline-pulse { to { box-shadow: 0 0 22px rgba(255, 63, 164, .5); } }
     @keyframes state-pulse { 50% { opacity: .62; } }
     @keyframes speed-streak { to { background-position-y: 42px, 42px; } }

@@ -427,6 +427,11 @@ async function startRunning() {
         await audioPromise;
         setGameState('running');
         clock.getDelta();
+        if (!dailyPanel.dialog.open
+            && document.activeElement?.matches?.('[data-daily-open], [data-daily-menu]')) {
+            renderer.domElement.tabIndex = 0;
+            renderer.domElement.focus({ preventScroll: true });
+        }
         if (isNewRun) {
             activeRunSeconds = 0;
             analytics.trackRunStart(gameMode);

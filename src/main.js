@@ -182,7 +182,8 @@ const quickMenu = new QuickMenu({
         if (gameState === 'running') setGameState('paused');
     },
     onHelp: openHelp,
-    onAudio: () => { void handleAudioToggle(); },
+    getAudioEnabled: () => !audioEngine.muted,
+    onAudioChange: setAudioEnabled,
     onLeaderboard: () => openLeaderboard({ currentTarget: quickMenu.trigger }),
     onDaily: () => dailyPanel.open({ currentTarget: quickMenu.trigger }),
     canLeaderboard: () => leaderboard.enabled,
@@ -696,11 +697,17 @@ async function submitOnlineScore() {
     }
 }
 
-async function handleAudioToggle() {
-    const isMuted = await audioEngine.toggleMuted();
+function setAudioEnabled(enabled) {
+    // Sound changes must never resume a paused flight or AudioContext.
+    const isMuted = audioEngine.setMuted(!enabled);
     audioButton.classList.toggle('is-off', isMuted);
-    audioButton.setAttribute('aria-pressed', isMuted.toString());
+    audioButton.setAttribute('aria-pressed', String(isMuted));
     audioButton.querySelector('[data-audio-label]').textContent = isMuted ? 'Audio Off' : 'Audio On';
+    quickMenu.refreshAudio();
+}
+
+function handleAudioToggle() {
+    setAudioEnabled(audioEngine.muted);
 }
 
 /** Mirrors the all-time score and ring records into the HUD and overlay. */

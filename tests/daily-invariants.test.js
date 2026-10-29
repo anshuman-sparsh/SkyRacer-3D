@@ -43,3 +43,18 @@ test('daily JWT and date origin remain server-managed', () => {
     assert.doesNotMatch(endpoint, /\.from\('best_scores'\)/);
     assert.doesNotMatch(endpoint, /\.from\('run_sessions'\)/);
 });
+
+
+test('hazard-enabled Daily v2 never combines rankings with earlier course versions', () => {
+    const endpoint = read('supabase/functions/daily-challenge/index.ts');
+    const validation = read('supabase/functions/daily-challenge/validation.js');
+    const course = read('src/utils/DailyChallenge.js');
+    const sql = read('supabase/migrations/20261029130807_black_ring_daily_course_v2.sql');
+    assert.match(validation, /DAILY_COURSE_VERSION = 2/);
+    assert.match(course, /DAILY_COURSE_VERSION = 2/);
+    assert.ok((endpoint.match(/\.eq\('course_version', DAILY_COURSE_VERSION\)/g) ?? []).length >= 4);
+    assert.match(sql, /primary key \(challenge_date, user_id, course_version\)/);
+    assert.match(sql, /on conflict \(challenge_date, user_id, course_version\) do update/);
+    assert.match(sql, /and best\.course_version = v_run\.course_version/);
+    assert.doesNotMatch(sql, /truncate|delete from public\.best_scores/i);
+});

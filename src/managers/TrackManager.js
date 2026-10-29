@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { EnergyRing } from '../entities/EnergyRing.js';
+import { BlackRing } from '../entities/BlackRing.js';
 import { Obstacle } from '../entities/Obstacle.js';
 import { TrackSegment } from '../entities/TrackSegment.js';
 import { disposeObject3D } from '../utils/Memory.js';
@@ -17,6 +18,7 @@ export class TrackManager {
         behindDistance = 48,
         ringSpawnChance = 0.65,
         obstacleSpawnChance = 0.55,
+        blackRingSpawnChance = 0.12,
         edgeClearance = 1.6,
         craftBounds = { minY: 1, maxY: 10 },
         random = Math.random,
@@ -29,12 +31,20 @@ export class TrackManager {
         this.behindDistance = behindDistance;
         this.ringSpawnChance = ringSpawnChance;
         this.obstacleSpawnChance = obstacleSpawnChance;
+        // The fatal ring must remain rarer than the existing 55% barrier
+        // spawn chance, including when custom spawn rates are supplied.
+        this.blackRingSpawnChance = Math.min(
+            THREE.MathUtils.clamp(blackRingSpawnChance, 0, 1),
+            Math.max(0, THREE.MathUtils.clamp(obstacleSpawnChance, 0, 1) - 0.01),
+        );
         this.craftBounds = craftBounds;
         this.random = random;
         this.segments = [];
         this.energyRings = [];
         this.energyRingPool = [];
         this.surgeRingPool = [];
+        this.blackRings = [];
+        this.blackRingPool = [];
         this.obstaclePool = [];
         this.obstacles = [];
         this.segmentPool = [];
@@ -64,6 +74,29 @@ export class TrackManager {
         // path traveled since the last update so high-speed crossings register.
         const pathStart = this.previousCraftPosition ?? hovercraft.position;
         const pathEnd = hovercraft.position;
+
+        // Fatal rings take priority over all collectible rings on this frame.
+        // A black ring never counts as a collected ring, resets the deadline,
+        // or grants energy/surge, even on a high-speed multi-ring crossing.
+        for (let index = this.blackRings.length - 1; index >= 0; index -= 1) {
+            const blackRing = this.blackRings[index];
+            blackRing.update(delta);
+            if (!hovercraft.isSpinningOut && blackRing.intersectsPath(pathStart, pathEnd)) {
+                this.previousCraftPosition = hovercraft.position.clone();
+                return {
+                    collectedRings: 0,
+                    collectedEnergyRings: 0,
+                    collectedSurgeRings: 0,
+                    nearMisses: 0,
+                    collided: true,
+                    collisionType: 'black-ring',
+                };
+            }
+            if (blackRing.position.z > hovercraft.position.z + this.behindDistance) {
+                this.blackRings.splice(index, 1);
+                this.#releaseBlackRing(blackRing);
+            }
+        }
 
         for (let index = this.energyRings.length - 1; index >= 0; index -= 1) {
             const ring = this.energyRings[index];
@@ -100,6 +133,7 @@ export class TrackManager {
                     collectedSurgeRings,
                     nearMisses,
                     collided,
+                    collisionType: 'barrier',
                 };
             } else if (!obstacle.wasNearMissed && !hovercraft.isSpinningOut) {
                 // A near-miss is a barrier the craft has just slipped past while
@@ -133,6 +167,7 @@ export class TrackManager {
             collectedSurgeRings,
             nearMisses,
             collided,
+            collisionType: null,
         };
     }
 
@@ -143,9 +178,11 @@ export class TrackManager {
             this.random = random;
         }
         this.energyRings.forEach((ring) => this.#releaseEnergyRing(ring));
+        this.blackRings.forEach((ring) => this.#releaseBlackRing(ring));
         this.obstacles.forEach((obstacle) => this.#releaseObstacle(obstacle));
         this.segments.forEach((segment) => this.#releaseSegment(segment));
         this.energyRings.length = 0;
+        this.blackRings.length = 0;
         this.obstacles.length = 0;
         this.segments.length = 0;
         this.nextSegmentZ = 0;
@@ -155,15 +192,20 @@ export class TrackManager {
     }
 
     destroy() {
-        const allRings = [...this.energyRings, ...this.energyRingPool, ...this.surgeRingPool];
+        const allRings = [
+            ...this.energyRings, ...this.energyRingPool, ...this.surgeRingPool,
+            ...this.blackRings, ...this.blackRingPool,
+        ];
         const allObstacles = [...this.obstacles, ...this.obstaclePool];
         const allSegments = [...this.segments, ...this.segmentPool];
         allRings.forEach((ring) => this.#removeAndDispose(ring));
         allObstacles.forEach((obstacle) => this.#removeAndDispose(obstacle));
         allSegments.forEach((segment) => this.#removeAndDispose(segment));
         this.energyRings.length = 0;
+        this.blackRings.length = 0;
         this.obstacles.length = 0;
         this.segments.length = 0;
+        this.blackRingPool.length = 0;
         this.energyRingPool.length = 0;
         this.surgeRingPool.length = 0;
         this.obstaclePool.length = 0;
@@ -192,6 +234,19 @@ export class TrackManager {
         ring.ringVisual.rotation.set(0, 0, 0);
         ring.halo.scale.setScalar(1);
         (ring.isSurge ? this.surgeRingPool : this.energyRingPool).push(ring);
+    }
+
+    #acquireBlackRing() {
+        return this.blackRingPool.pop() ?? new BlackRing();
+    }
+
+    #releaseBlackRing(ring) {
+        this.scene.remove(ring);
+        ring.visible = false;
+        ring.position.set(0, 0, 0);
+        ring.ringVisual.rotation.set(0, 0, 0);
+        ring.halo.scale.setScalar(1);
+        this.blackRingPool.push(ring);
     }
 
     #acquireObstacle() {
@@ -234,7 +289,12 @@ export class TrackManager {
 
         // The first stretch stays clear so the run always opens with a fair lead-in.
         const isOpeningStretch = z > -this.segmentLength * 2;
-        const ring = this.random() <= this.ringSpawnChance ? this.#spawnRing(z) : null;
+        // Only one ring type per segment; black rings cannot disguise a
+        // collectible ring. Both ring types stay clear of nearby barriers.
+        const spawnBlack = !isOpeningStretch && this.random() < this.blackRingSpawnChance;
+        const ring = spawnBlack
+            ? this.#spawnBlackRing(z)
+            : (this.random() <= this.ringSpawnChance ? this.#spawnRing(z) : null);
         if (!isOpeningStretch && this.random() <= this.obstacleSpawnChance) {
             this.#spawnObstacle(z, ring);
         }
@@ -252,6 +312,20 @@ export class TrackManager {
         );
         ring.visible = true;
         this.energyRings.push(ring);
+        this.scene.add(ring);
+        return ring;
+    }
+
+    #spawnBlackRing(z) {
+        const ring = this.#acquireBlackRing();
+        const { minY, maxY } = this.craftBounds;
+        ring.position.set(
+            (this.random() * 2 - 1) * this.ringHalfWidth,
+            THREE.MathUtils.clamp(minY + this.random() * (maxY - minY), minY + 0.8, maxY - 0.8),
+            z - this.segmentLength * (0.18 + this.random() * 0.24),
+        );
+        ring.visible = true;
+        this.blackRings.push(ring);
         this.scene.add(ring);
         return ring;
     }

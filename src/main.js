@@ -517,41 +517,16 @@ function restartRun() {
     void startRunning();
 }
 
-async function handleGameKey(event) {
-    // Help is a native modal. Opening it with Enter must not start the game,
-    // and keys pressed while reading the guide must not resume gameplay.
+function handleGameKey(event) {
+    // Only explicit START FLIGHT / FLY AGAIN button activation may create a
+    // new run. Never start or retry from canvas touch, arrows, WASD or generic
+    // Enter/Space. Native Enter/Space on the focused button still clicks it.
     if (helpDialog.open || leaderboardDialog.open || dailyPanel.dialog.open || quickMenu.opened) return;
-    // Enter/Space should activate focused UI controls, not start a run.
-    // Other gameplay keys must still work after the player closes Help.
-    if ((event.code === 'Enter' || event.code === 'Space')
-        && event.target?.closest?.('button, input, dialog')) return;
-    if (event.repeat) return;
-
-    if (gameState === 'start') {
-        await startRunning();
-        return;
-    }
-
-    if (gameState === 'terminated') {
-        if (event.code === 'Enter' || event.code === 'Space') restartRun();
-        return;
-    }
-
-    if (event.code === 'Escape' || event.code === 'KeyP') togglePause();
-}
-
-/**
- * Starts or resumes from a tap, which is the only way in on touch devices.
- * The terminated screen is excluded so a stray tap cannot skip the results.
- */
-function handleOverlayPointerDown(event) {
-    if (event.target.closest('button')) return;
-
-    if (gameState === 'start') {
-        void startRunning();
-    } else if (gameState === 'paused') {
-        togglePause();
-    }
+    if (event.repeat || gameState === 'start' || gameState === 'terminated') return;
+    // Preserve P / Esc pause behavior after the first launch. On a paused
+    // flight, clicking RESUME FLIGHT is always available as an alternative.
+    if ((event.code === 'Escape' || event.code === 'KeyP')
+        && !event.target?.closest?.('button, input, dialog')) togglePause();
 }
 
 function openHelp() {
@@ -936,7 +911,6 @@ function disposeApp() {
     window.visualViewport?.removeEventListener('resize', handleResize);
     window.removeEventListener('keydown', handleGameKey);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
-    stateOverlay.removeEventListener('pointerdown', handleOverlayPointerDown);
     audioButton.removeEventListener('click', handleAudioToggle);
     helpButton.removeEventListener('click', openHelp);
     helpCloseButton.removeEventListener('click', closeHelp);
@@ -980,7 +954,6 @@ window.addEventListener('orientationchange', handleResize);
 window.visualViewport?.addEventListener('resize', handleResize);
 window.addEventListener('keydown', handleGameKey);
 document.addEventListener('visibilitychange', handleVisibilityChange);
-stateOverlay.addEventListener('pointerdown', handleOverlayPointerDown);
 audioButton.addEventListener('click', handleAudioToggle);
 helpButton.addEventListener('click', openHelp);
 helpCloseButton.addEventListener('click', closeHelp);

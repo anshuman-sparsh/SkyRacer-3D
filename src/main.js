@@ -525,8 +525,7 @@ function handleGameKey(event) {
     if (event.repeat || gameState === 'start' || gameState === 'terminated') return;
     // Preserve P / Esc pause behavior after the first launch. On a paused
     // flight, clicking RESUME FLIGHT is always available as an alternative.
-    if ((event.code === 'Escape' || event.code === 'KeyP')
-        && !event.target?.closest?.('button, input, dialog')) togglePause();
+    if (event.code === 'Escape' || event.code === 'KeyP') togglePause();
 }
 
 function openHelp() {

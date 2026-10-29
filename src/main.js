@@ -101,6 +101,7 @@ const overlayBestValueElement = document.querySelector('[data-overlay-best-value
 const overlayBestRingsElement = document.querySelector('[data-overlay-best-rings]');
 const overlayBestRingsValueElement = document.querySelector('[data-overlay-best-rings-value]');
 const restartButton = document.querySelector('[data-restart]');
+const exitMenuButton = document.querySelector('[data-exit-menu]');
 const audioButton = document.querySelector('[data-audio-toggle]');
 const pauseButton = document.querySelector('[data-pause-toggle]');
 const pauseLabel = document.querySelector('[data-pause-label]');
@@ -253,6 +254,7 @@ function setGameState(nextState, terminationReason = 'collision') {
 
     stateStats.hidden = !isTerminated;
     restartButton.hidden = !isTerminated;
+    exitMenuButton.hidden = !isTerminated;
     scoreSubmitButton.hidden = gameMode !== 'classic'
         || !isTerminated || !leaderboard.enabled || onlineSubmitted;
     stateTitle.classList.toggle('is-alert', isTerminated);
@@ -353,6 +355,15 @@ function resetForNewMode() {
     lastBestRingsRecord = false;
     updateHud();
     setGameState('start');
+}
+
+function backToMainMenu() {
+    if (startTransitionPending || gameState !== 'terminated') return;
+    if (gameMode === 'daily') {
+        returnToClassic();
+    } else {
+        resetForNewMode();
+    }
 }
 
 function returnToClassic() {
@@ -931,6 +942,7 @@ function disposeApp() {
     leaderboardSendButton.removeEventListener('click', submitOnlineScore);
     pauseButton.removeEventListener('click', togglePause);
     restartButton.removeEventListener('click', restartRun);
+    exitMenuButton.removeEventListener('click', backToMainMenu);
     classicModeButton.removeEventListener('click', returnToClassic);
     dailySubmitButton.removeEventListener('click', openDailyResults);
     dailyPanel.dispose();
@@ -977,6 +989,7 @@ startFlightButton.addEventListener('click', () => {
     if (gameState === 'start' || gameState === 'paused') void startRunning();
 });
 restartButton.addEventListener('click', restartRun);
+exitMenuButton.addEventListener('click', backToMainMenu);
 classicModeButton.addEventListener('click', returnToClassic);
 dailySubmitButton.addEventListener('click', openDailyResults);
 window.addEventListener('pagehide', disposeApp, { once: true });

@@ -30,7 +30,7 @@ create table public.gameplay_events (
             and score is null and rings is null and distance is null
             and duration_seconds is null and reason is null)
     ),
-    constraint gameplay_events_mode_check check (
+    constraint gameplay_events_event_mode_check check (
         (event_name <> 'daily_challenge_played' or mode = 'daily')
         and (event_name <> 'challenge_shared' or mode <> 'practice')
     )

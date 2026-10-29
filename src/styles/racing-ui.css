@@ -591,6 +591,62 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
 .quick-menu button:hover, .quick-menu button:focus-visible { background: var(--sr-accent-soft); }
 .quick-menu button::after { content: "›"; color: var(--sr-accent-bright); font-size: 19px; }
 .quick-menu__divider { height: 1px; margin: 5px 10px; background: var(--sr-line-soft); }
+/* Compact, attached audio settings. Opening this panel does not close Menu. */
+.quick-menu__audio-group { position: relative; }
+.quick-menu .quick-menu__audio-trigger { gap: 12px; }
+.quick-menu__audio-trigger[aria-expanded="true"] { color: var(--sr-accent-bright); background: var(--sr-accent-soft); }
+.quick-menu__audio-trigger[aria-expanded="true"]::after { content: "⌄"; }
+.quick-menu__audio-state {
+  margin-left: auto;
+  color: var(--sr-accent-bright);
+  font: 700 11px/1 var(--sr-font-data);
+  letter-spacing: .02em;
+}
+.quick-menu__audio-popover {
+  margin: 2px 5px 12px;
+  padding: 13px;
+  border: 1px solid var(--sr-line);
+  border-radius: 10px;
+  background: var(--sr-panel);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 10px 25px rgba(0,0,0,.25);
+}
+.quick-menu__audio-popover[hidden] { display: none; }
+.quick-menu__audio-heading {
+  margin-bottom: 5px;
+  color: var(--sr-accent-bright);
+  font: 750 11px/1.2 var(--sr-font-display);
+  letter-spacing: .12em;
+}
+.quick-menu__audio-hint {
+  margin: 0 0 11px;
+  color: var(--sr-muted);
+  font: 450 12px/1.45 var(--sr-font-body);
+}
+.quick-menu__audio-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+.quick-menu .quick-menu__audio-options button {
+  justify-content: center;
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 1px solid var(--sr-line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sr-text);
+  font: 750 12px/1.2 var(--sr-font-display);
+  letter-spacing: .08em;
+}
+.quick-menu .quick-menu__audio-options button::after { content: none; }
+.quick-menu .quick-menu__audio-options button[aria-pressed="true"] {
+  background: var(--sr-accent);
+  border-color: var(--sr-accent);
+  color: var(--sr-action-text);
+}
+.quick-menu .quick-menu__audio-options button[aria-pressed="false"]:hover {
+  background: var(--sr-accent-soft);
+}
 .quick-menu__theme-button { color: var(--sr-accent-bright) !important; }
 .quick-menu button:disabled { opacity: .45; }
 

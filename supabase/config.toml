@@ -3,3 +3,6 @@ project_id = "skyracer-3d"
 
 [functions.leaderboard]
 verify_jwt = true
+
+[functions.game-events]
+verify_jwt = true

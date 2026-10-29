@@ -18,7 +18,7 @@ export class TrackManager {
         behindDistance = 48,
         ringSpawnChance = 0.65,
         obstacleSpawnChance = 0.55,
-        blackRingSpawnChance = 0.12,
+        blackRingSpawnChance = 0.15,
         edgeClearance = 1.6,
         craftBounds = { minY: 1, maxY: 10 },
         random = Math.random,
@@ -75,29 +75,6 @@ export class TrackManager {
         const pathStart = this.previousCraftPosition ?? hovercraft.position;
         const pathEnd = hovercraft.position;
 
-        // Fatal rings take priority over all collectible rings on this frame.
-        // A black ring never counts as a collected ring, resets the deadline,
-        // or grants energy/surge, even on a high-speed multi-ring crossing.
-        for (let index = this.blackRings.length - 1; index >= 0; index -= 1) {
-            const blackRing = this.blackRings[index];
-            blackRing.update(delta);
-            if (!hovercraft.isSpinningOut && blackRing.intersectsPath(pathStart, pathEnd)) {
-                this.previousCraftPosition = hovercraft.position.clone();
-                return {
-                    collectedRings: 0,
-                    collectedEnergyRings: 0,
-                    collectedSurgeRings: 0,
-                    nearMisses: 0,
-                    collided: true,
-                    collisionType: 'black-ring',
-                };
-            }
-            if (blackRing.position.z > hovercraft.position.z + this.behindDistance) {
-                this.blackRings.splice(index, 1);
-                this.#releaseBlackRing(blackRing);
-            }
-        }
-
         for (let index = this.energyRings.length - 1; index >= 0; index -= 1) {
             const ring = this.energyRings[index];
             ring.update(delta);
@@ -116,6 +93,29 @@ export class TrackManager {
             }
             this.energyRings.splice(index, 1);
             this.#releaseEnergyRing(ring);
+        }
+
+        // Black hazards end the flight exactly like existing barriers: all
+        // collected rings and rewards from this frame still reach ScoreManager.
+        // The black ring itself is never treated as an energy/surge pickup.
+        for (let index = this.blackRings.length - 1; index >= 0; index -= 1) {
+            const blackRing = this.blackRings[index];
+            blackRing.update(delta);
+            if (!hovercraft.isSpinningOut && blackRing.intersectsPath(pathStart, pathEnd)) {
+                this.previousCraftPosition = hovercraft.position.clone();
+                return {
+                    collectedRings,
+                    collectedEnergyRings,
+                    collectedSurgeRings,
+                    nearMisses,
+                    collided: true,
+                    collisionType: 'black-ring',
+                };
+            }
+            if (blackRing.position.z > hovercraft.position.z + this.behindDistance) {
+                this.blackRings.splice(index, 1);
+                this.#releaseBlackRing(blackRing);
+            }
         }
 
         for (let index = this.obstacles.length - 1; index >= 0; index -= 1) {

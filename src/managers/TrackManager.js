@@ -137,7 +137,11 @@ export class TrackManager {
     }
 
     /** Clears the course and rebuilds it from the origin for an in-place restart. */
-    reset() {
+    reset({ random } = {}) {
+        if (random !== undefined) {
+            if (typeof random !== 'function') throw new TypeError('Track random must be a function.');
+            this.random = random;
+        }
         this.energyRings.forEach((ring) => this.#releaseEnergyRing(ring));
         this.obstacles.forEach((obstacle) => this.#releaseObstacle(obstacle));
         this.segments.forEach((segment) => this.#releaseSegment(segment));

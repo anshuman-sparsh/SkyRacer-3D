@@ -209,7 +209,7 @@ const STATE_COPY = {
     ],
     terminated: ['FLIGHT ENDED', 'Navigation barrier contact. Ready for another run?'],
     ringTimeout: ['FLIGHT ENDED', 'No ring collected within 30 seconds. Try another route.'],
-    blackRing: ['BLACK RING HIT', 'Fatal hazard! Avoid the black rings with a red warning cross.'],
+    blackRing: ['BLACK RING HIT', 'Flight ended. You keep your earned score and rings — just like a barrier collision.'],
 };
 
 function updateRingDeadlineDisplay() {

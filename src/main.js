@@ -17,6 +17,9 @@ import { InputManager } from './managers/InputManager.js';
 import { ScoreManager } from './managers/ScoreManager.js';
 import { RingCollectionDeadline } from './managers/RingCollectionDeadline.js';
 import { LeaderboardService } from './services/LeaderboardService.js';
+import { DailyChallengeService } from './services/DailyChallengeService.js';
+import { DailyChallengePanel } from './ui/DailyChallengePanel.js';
+import { createDailyRandom } from './utils/DailyChallenge.js';
 import { GameplayAnalyticsService } from './services/GameplayAnalyticsService.js';
 import { formatLeaderboardName } from './utils/LeaderboardDisplay.js';
 import { TrackManager } from './managers/TrackManager.js';
@@ -52,9 +55,12 @@ const ringGuidance = new RingGuidance();
 const collisionDebug = new URLSearchParams(window.location.search).get('debugHitboxes') === '1'
     ? new CollisionDebug(scene, hovercraft, trackManager)
     : null;
-const scoreManager = new ScoreManager();
+const classicScoreManager = new ScoreManager();
+const dailyScoreManager = new ScoreManager({ recordsEnabled: false });
+let scoreManager = classicScoreManager;
 const ringCollectionDeadline = new RingCollectionDeadline();
 const leaderboard = new LeaderboardService();
+const dailyService = new DailyChallengeService(leaderboard);
 const analytics = new GameplayAnalyticsService({
     submitEvent: leaderboard.enabled ? (event) => leaderboard.sendGameplayEvent(event) : null,
 });
@@ -109,6 +115,10 @@ const leaderboardNickname = document.querySelector('[data-leaderboard-nickname]'
 const leaderboardNicknameLabel = document.querySelector('[data-leaderboard-nickname-label]');
 const leaderboardSendButton = document.querySelector('[data-leaderboard-send]');
 const scoreSubmitButton = document.querySelector('[data-submit-score]');
+const dailySubmitButton = document.querySelector('[data-daily-submit]');
+const classicModeButton = document.querySelector('[data-classic-mode]');
+const dailyOwnOverlay = document.querySelector('[data-daily-own-overlay]');
+const modeLabel = document.querySelector('[data-mode-label]');
 const touchIndicator = document.querySelector('[data-touch-indicator]');
 const touchIndicatorThumb = document.querySelector('[data-touch-indicator-thumb]');
 
@@ -121,6 +131,11 @@ const inputManager = new InputManager(window, {
 
 let animationFrameId = 0;
 let gameState = 'start';
+let gameMode = 'classic';
+let activeDailyRun = null;
+let dailySubmitting = false;
+let dailyPersonalBest = null;
+let dailyLastError = '';
 let activeRunSeconds = 0;
 let startTransitionPending = false;
 let wasBoosting = false;
@@ -145,6 +160,15 @@ let lastBestRingsRecord = false;
 let onlineRunPromise = null;
 let onlineSubmitted = false;
 let leaderboardReturnFocus = leaderboardButton;
+const dailyPanel = new DailyChallengePanel({
+    service: dailyService,
+    onPlay: launchDailyChallenge,
+    onSubmit: submitDailyScore,
+    onOpen: () => { if (gameState === 'running') setGameState('paused'); },
+    canPlay: () => gameState === 'start' || gameState === 'terminated',
+    canSubmit: () => gameMode === 'daily' && gameState === 'terminated'
+        && scoreManager.currentScore > 0 && Boolean(activeDailyRun) && !activeDailyRun.submitted,
+});
 leaderboardButton.hidden = !leaderboard.enabled;
 
 // Touch devices have no keyboard, so the prompts must name the gesture that works.

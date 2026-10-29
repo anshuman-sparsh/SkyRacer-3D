@@ -6,6 +6,7 @@ export class QuickMenu {
     constructor({
         onOpen = () => {},
         onHelp = () => {},
+        onAudio = () => {},
         onLeaderboard = () => {},
         onDaily = () => {},
         canLeaderboard = () => true,
@@ -14,6 +15,7 @@ export class QuickMenu {
         this.trigger = document.querySelector('[data-quick-open]');
         this.menu = document.querySelector('[data-quick-menu]');
         this.help = document.querySelector('[data-quick-help]');
+        this.audio = document.querySelector('[data-quick-audio]');
         this.leaderboard = document.querySelector('[data-quick-leaderboard]');
         this.daily = document.querySelector('[data-quick-daily]');
         this.canLeaderboard = canLeaderboard;
@@ -34,10 +36,12 @@ export class QuickMenu {
             }
         };
         this.handleHelp = () => { this.close({ focus: false }); onHelp(); };
+        this.handleAudio = () => { this.close(); onAudio(); };
         this.handleLeaderboard = () => { this.close({ focus: false }); onLeaderboard(); };
         this.handleDaily = () => { this.close({ focus: false }); onDaily(); };
         this.trigger.addEventListener('click', this.handleToggle);
         this.help.addEventListener('click', this.handleHelp);
+        this.audio.addEventListener('click', this.handleAudio);
         this.leaderboard.addEventListener('click', this.handleLeaderboard);
         this.daily.addEventListener('click', this.handleDaily);
         document.addEventListener('pointerdown', this.handleOutside, true);
@@ -66,6 +70,7 @@ export class QuickMenu {
     dispose() {
         this.trigger.removeEventListener('click', this.handleToggle);
         this.help.removeEventListener('click', this.handleHelp);
+        this.audio.removeEventListener('click', this.handleAudio);
         this.leaderboard.removeEventListener('click', this.handleLeaderboard);
         this.daily.removeEventListener('click', this.handleDaily);
         document.removeEventListener('pointerdown', this.handleOutside, true);

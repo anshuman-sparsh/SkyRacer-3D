@@ -21,6 +21,7 @@ export default {
         .from('daily_best_scores')
         .select('user_id,score,rings,achieved_at,player_profiles(nickname)')
         .eq('challenge_date', today)
+        .eq('course_version', DAILY_COURSE_VERSION)
         .order('score', { ascending: false })
         .order('achieved_at', { ascending: true })
         .limit(TOP);
@@ -28,7 +29,7 @@ export default {
       const { data: mine, error: mineError } = await ctx.supabaseAdmin
         .from('daily_best_scores')
         .select('score,rings,achieved_at')
-        .eq('challenge_date', today).eq('user_id', playerId)
+        .eq('challenge_date', today).eq('course_version', DAILY_COURSE_VERSION).eq('user_id', playerId)
         .maybeSingle();
       if (mineError) return bad('Your daily ranking is temporarily unavailable.', 503);
       const { data: profile, error: profileError } = await ctx.supabaseAdmin
@@ -40,10 +41,10 @@ export default {
         const [above, aheadOnTie] = await Promise.all([
           ctx.supabaseAdmin.from('daily_best_scores')
             .select('user_id', { count: 'exact', head: true })
-            .eq('challenge_date', today).gt('score', mine.score),
+            .eq('challenge_date', today).eq('course_version', DAILY_COURSE_VERSION).gt('score', mine.score),
           ctx.supabaseAdmin.from('daily_best_scores')
             .select('user_id', { count: 'exact', head: true })
-            .eq('challenge_date', today).eq('score', mine.score)
+            .eq('challenge_date', today).eq('course_version', DAILY_COURSE_VERSION).eq('score', mine.score)
             .lt('achieved_at', mine.achieved_at),
         ]);
         if (above.error || aheadOnTie.error) return bad('Your daily rank is temporarily unavailable.', 503);

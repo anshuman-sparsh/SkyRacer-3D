@@ -196,6 +196,7 @@ const aircraftSelection = new AircraftSelection({
 });
 const hangarPanel = new HangarPanel({
     selection: aircraftSelection,
+    loadProgress: () => leaderboard.getHangarProgress(),
     getTheme: () => themeController.theme,
     canOpen: () => gameState === 'start' && !startTransitionPending && !friendStartPending,
 });
@@ -347,6 +348,7 @@ function setGameState(nextState, terminationReason = 'collision') {
         }).then(result => {
             if (activeFriendRun === finishedRun) {
                 friendPanel.setVerifiedResult(result);
+                void hangarPanel.refreshProgress();
             }
         }).catch(error => {
             if (activeFriendRun === finishedRun) friendPanel.outcome.textContent =
@@ -504,6 +506,7 @@ async function submitDailyScore(nickname) {
             rings: scoreManager.ringsCollected, distance: scoreManager.distance,
         });
         dailyPersonalBest = result.personalBest;
+        void hangarPanel.refreshProgress();
         dailyLastError = '';
         if (activeDailyRun === run) {
             updateModeDisplays();
@@ -764,6 +767,7 @@ async function submitOnlineScore() {
         if (!result?.accepted) throw new Error('The score was not accepted.');
         onlineSubmitted = true;
         lastClassicRunId = runId;
+        void hangarPanel.refreshProgress();
         friendPanel.updateActions();
         leaderboardForm.hidden = true;
         scoreSubmitButton.hidden = true;

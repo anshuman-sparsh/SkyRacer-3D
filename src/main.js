@@ -23,6 +23,7 @@ import { DailyChallengePanel } from './ui/DailyChallengePanel.js';
 import { FriendChallengePanel } from './ui/FriendChallengePanel.js';
 import { FriendChallengeService } from './services/FriendChallengeService.js';
 import { ThemeController } from './ui/ThemeController.js';
+import { HangarPanel } from './ui/HangarPanel.js';
 import { QuickMenu } from './ui/QuickMenu.js';
 import { shouldToggleFlightPause } from './ui/FlightKeyPolicy.js';
 import { createDailyRandom } from './utils/DailyChallenge.js';
@@ -187,6 +188,12 @@ const dailyPanel = new DailyChallengePanel({
         && !dailySubmitting,
 });
 const themeController = new ThemeController();
+const hangarPanel = new HangarPanel({
+    getTheme: () => themeController.theme,
+    canOpen: () => gameState === 'start' && !startTransitionPending && !friendStartPending,
+});
+const handleHangarThemeChange = () => hangarPanel.refresh();
+themeController.button?.addEventListener('click', handleHangarThemeChange);
 const friendPanel = new FriendChallengePanel({
     service: friendService,
     onOpen: () => { if (gameState === 'running') setGameState('paused'); },
@@ -268,6 +275,7 @@ function setGameState(nextState, terminationReason = 'collision') {
     const isTerminated = nextState === 'terminated';
     const isStart = nextState === 'start';
     stateOverlay.dataset.state = nextState;
+    hangarPanel.setAvailable(nextState === 'start');
     overlayHero.hidden = !isStart;
     startFlightButton.hidden = !(isStart || nextState === 'paused');
     startFlightButton.textContent = nextState === 'paused' ? 'RESUME FLIGHT' : 'START FLIGHT';
@@ -609,7 +617,7 @@ function restartRun() {
 function handleGameKey(event) {
     // A new flight or retry starts exclusively from START FLIGHT or FLY AGAIN,
     // not arbitrary keys, arrow movement or taps on the overlay.
-    if (helpDialog.open || leaderboardDialog.open || dailyPanel.dialog.open || friendPanel.dialog.open || quickMenu.opened) return;
+    if (helpDialog.open || leaderboardDialog.open || dailyPanel.dialog.open || friendPanel.dialog.open || hangarPanel.dialog.open || quickMenu.opened) return;
     if (shouldToggleFlightPause(gameState, event.code, event.repeat)) togglePause();
 }
 
@@ -1018,6 +1026,8 @@ function disposeApp() {
     dailyPanel.dispose();
     friendPanel.dispose();
     quickMenu.dispose();
+    themeController.button?.removeEventListener('click', handleHangarThemeChange);
+    hangarPanel.dispose();
     themeController.dispose();
     inputManager.destroy();
     collisionDebug?.dispose();

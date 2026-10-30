@@ -12,6 +12,7 @@ export class QuickMenu {
         onAudioChange = () => {},
         onLeaderboard = () => {},
         onDaily = () => {},
+        onFriend = () => {},
         canLeaderboard = () => true,
         canDaily = () => true,
     } = {}) {
@@ -26,6 +27,7 @@ export class QuickMenu {
         this.audioState = document.querySelector('[data-quick-audio-state]');
         this.leaderboard = document.querySelector('[data-quick-leaderboard]');
         this.daily = document.querySelector('[data-quick-daily]');
+        this.friend = document.querySelector('[data-quick-friend]');
         this.canLeaderboard = canLeaderboard;
         this.canDaily = canDaily;
         this.getAudioEnabled = getAudioEnabled;
@@ -56,6 +58,7 @@ export class QuickMenu {
         this.handleAudioOff = () => this.selectAudio(false);
         this.handleLeaderboard = () => { this.close({ focus: false }); onLeaderboard(); };
         this.handleDaily = () => { this.close({ focus: false }); onDaily(); };
+        this.handleFriend = () => { this.close({ focus: false }); onFriend(); };
 
         this.trigger.addEventListener('click', this.handleToggle);
         this.help.addEventListener('click', this.handleHelp);
@@ -64,6 +67,7 @@ export class QuickMenu {
         this.audioOff.addEventListener('click', this.handleAudioOff);
         this.leaderboard.addEventListener('click', this.handleLeaderboard);
         this.daily.addEventListener('click', this.handleDaily);
+        this.friend?.addEventListener('click', this.handleFriend);
         document.addEventListener('pointerdown', this.handleOutside, true);
         document.addEventListener('keydown', this.handleKey, true);
         this.refreshAudio();
@@ -130,6 +134,7 @@ export class QuickMenu {
         this.audioOff.removeEventListener('click', this.handleAudioOff);
         this.leaderboard.removeEventListener('click', this.handleLeaderboard);
         this.daily.removeEventListener('click', this.handleDaily);
+        this.friend?.removeEventListener('click', this.handleFriend);
         document.removeEventListener('pointerdown', this.handleOutside, true);
         document.removeEventListener('keydown', this.handleKey, true);
     }

@@ -749,3 +749,21 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* M4-A friend challenge dialog, shared with Racing Ember and Neon themes. */
+.friend-dialog { width: min(580px, calc(100vw - 24px)); }
+.friend-dialog [hidden] { display: none !important; }
+.friend-details { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 1.3fr); gap: 10px 16px; margin: 18px 0; padding: 16px; border: 1px solid var(--sr-line-soft); border-radius: var(--sr-radius-sm); background: var(--sr-accent-soft); align-items: center; }
+.friend-details__label { font: 700 11px/1.3 var(--sr-font-body); color: var(--sr-muted); letter-spacing: .06em; }
+.friend-details strong { color: var(--sr-accent-bright); font: 750 clamp(17px, 3vw, 23px)/1.2 var(--sr-font-data); overflow-wrap: anywhere; }
+.friend-outcome { color: var(--sr-accent-bright); min-height: 1em; font: 650 13px/1.5 var(--sr-font-body); }
+.friend-actions { display: flex; flex-wrap: wrap; gap: 9px; margin: 15px 0; }
+.friend-actions button { margin: 0; flex: 1 1 190px; }
+.friend-share { border-top: 1px solid var(--sr-line-soft); margin-top: 18px; padding-top: 16px; }
+.friend-share label { display: block; margin-bottom: 8px; color: var(--sr-accent-bright); font: 650 13px/1.4 var(--sr-font-body); }
+.friend-share__row { display: flex; flex-wrap: wrap; gap: 9px; }
+.friend-share__row input { min-width: 0; flex: 1 1 240px; border: 1px solid var(--sr-line); border-radius: var(--sr-radius-sm); padding: 12px; background: var(--sr-bg); color: var(--sr-text); font: 500 12px/1.4 var(--sr-font-data); }
+.friend-share__row button { flex: 0 0 auto; margin: 0; }
+.friend-dialog button:disabled { cursor: not-allowed; opacity: .48; }
+.friend-dialog button:focus-visible, .friend-share__row input:focus-visible { outline: 2px solid var(--sr-accent-bright); outline-offset: 3px; }
+@media (max-width: 540px) { .friend-details { grid-template-columns: 1fr; gap: 5px; } .friend-details__label:not(:first-child) { margin-top: 9px; } .friend-share__row button { width: 100%; } }

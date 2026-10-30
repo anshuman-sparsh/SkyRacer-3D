@@ -8,6 +8,9 @@ export class FriendChallengeService {
     async resolve(id) {
         return this.leaderboard.requestFriendChallenge('GET', null, id);
     }
+    async submitClassic(result) {
+        return this.leaderboard.requestFriendChallenge('POST', { action: 'submit-classic', ...result });
+    }
     async create({ runId }) {
         if (!runId) throw new Error('Submit your completed Classic run to verify it before sharing.');
         return this.leaderboard.requestFriendChallenge('POST', { action: 'create', runId });

@@ -203,7 +203,7 @@ test('black rings return to the pool on reset and leave the scene on destroy', (
 test('help and termination copy clearly explain that black rings are fatal', () => {
     const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
     const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-    assert.match(html, /Black ring with a red X/);
+    assert.match(html, /Black hazard ring:/);
     assert.match(html, /All points and rings you've already earned stay in your final score/);
     assert.match(main, /blackRing: \['BLACK RING HIT'/);
     assert.match(main, /collisionType === 'black-ring'/);

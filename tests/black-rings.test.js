@@ -205,5 +205,5 @@ test('help and termination copy clearly explain that black rings are fatal', () 
     assert.match(html, /All points and rings you've already earned stay in your final score/);
     assert.match(main, /blackRing: \['BLACK RING HIT'/);
     assert.match(main, /collisionType === 'black-ring'/);
-    assert.match(main, /ringGuidance\.update\(trackManager\.energyRings, hovercraft\)/);
+    assert.match(main, /ringGuidance\.update\(trackManager\.energyRings, hovercraft(?:,|\))/);
 });

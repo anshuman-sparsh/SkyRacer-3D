@@ -274,6 +274,10 @@
         <p class="state-overlay__best" data-overlay-best-rings>Best Rings <strong data-overlay-best-rings-value>0</strong></p>
       </div>
       <p class="daily-own-overlay" data-daily-own-overlay hidden></p>
+      <div class="hangar-unlock" data-hangar-unlock hidden role="status">
+        <strong data-hangar-unlock-name>NEW AIRCRAFT UNLOCKED</strong>
+        <button type="button" data-hangar-unlock-open>VIEW IN HANGAR</button>
+      </div>
       <div class="state-overlay__actions">
         <button class="state-overlay__action is-primary" type="button" data-start-flight>START FLIGHT</button>
         <button class="state-overlay__action is-primary" type="button" data-restart hidden>FLY AGAIN</button>
@@ -283,6 +287,13 @@
         <button class="state-overlay__action" type="button" data-friend-result hidden>CHALLENGE A FRIEND</button>
         <button class="daily-action" type="button" data-daily-menu hidden>DAILY CHALLENGE</button>
         <button class="daily-action" type="button" data-classic-mode hidden>RETURN TO CLASSIC</button>
+      </div>
+      <div class="hangar-entry" data-hangar-entry hidden>
+        <div class="hangar-entry__identity">
+          <span class="hangar-entry__eyebrow">YOUR AIRCRAFT · READY TO FLY</span>
+          <strong data-hangar-current>Ember Striker</strong>
+        </div>
+        <button type="button" class="hangar-entry__button" data-hangar-open aria-haspopup="dialog" aria-controls="skyracer-hangar">EXPLORE HANGAR <span aria-hidden="true">›</span></button>
       </div>
     </div>
   </div>
@@ -419,6 +430,51 @@
       <div class="friend-share__row"><input type="url" id="friend-share-link" data-friend-link readonly placeholder="Verified challenge link will appear here" /><button type="button" class="daily-action" data-friend-copy disabled>COPY LINK</button></div>
     </div>
     <p class="help-dialog__note">Any verified completed Classic flight can create your first challenge. Each new challenge must beat your last challenge score. A tie does not win. Links contain only an opaque server-issued ID.</p>
+  </dialog>
+  <dialog id="skyracer-hangar" class="hangar-shell" data-hangar-dialog aria-labelledby="hangar-title" aria-describedby="hangar-intro">
+    <div class="hangar-shell__inner">
+      <header class="hangar-shell__header">
+        <div>
+          <div class="hangar-shell__eyebrow">SKYRACER // AIRCRAFT COLLECTION</div>
+          <h2 id="hangar-title">THE HANGAR</h2>
+        </div>
+        <button type="button" class="hangar-shell__close" data-hangar-close aria-label="Return to pre-flight screen">← BACK TO FLIGHT</button>
+      </header>
+      <p class="hangar-shell__intro" id="hangar-intro">Explore the aircraft lineup and achievements. Choose between two free aircraft, or preview locked advanced designs. Unlock advanced aircraft by completing server-verified flights and milestones.</p>
+      <div class="hangar-preview" data-hangar-preview data-aircraft="ember-striker">
+        <div class="hangar-preview__grid" aria-hidden="true"></div>
+        <div class="hangar-preview__canvas" data-hangar-canvas aria-label="Interactive 3D aircraft preview"></div>
+        <svg class="hangar-preview__silhouette" viewBox="0 0 340 210" aria-hidden="true" focusable="false">
+          <path d="M170 12 L186 88 L291 137 L291 155 L202 140 L201 175 L220 188 L220 198 L170 190 L120 198 L120 188 L139 175 L138 140 L49 155 L49 137 L154 88 Z" fill="currentColor" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+          <path d="M170 30 L170 179 M146 133 L194 133 M153 95 L187 95" stroke="var(--sr-bg)" stroke-width="5" stroke-linecap="round"/>
+        </svg>
+        <div class="hangar-preview__identity">
+          <span>AIRCRAFT PREVIEW · ROTATE TO INSPECT</span>
+          <strong data-hangar-default-name>Ember Striker</strong>
+          <small>Drag to rotate the 3D preview</small>
+          <small data-hangar-ability>Starter aircraft · standard flight handling</small>
+        </div>
+      </div>
+      <div class="hangar-equipped">
+        <span data-hangar-selected-state>Match Theme · Active</span>
+        <button type="button" data-hangar-equip>USE THIS AIRCRAFT</button>
+        <button type="button" data-hangar-match>MATCH THEME</button>
+      </div>
+      <p class="hangar-shell__section-note" data-hangar-progress-status role="status" aria-live="polite">Checking online achievement progress…</p>
+      <div class="hangar-shell__tabs" role="tablist" aria-label="Hangar sections">
+        <button type="button" data-hangar-tab-aircraft id="hangar-tab-aircraft" role="tab" aria-selected="true" aria-controls="hangar-panel-aircraft">AIRCRAFT</button>
+        <button type="button" data-hangar-tab-achievements id="hangar-tab-achievements" role="tab" aria-selected="false" aria-controls="hangar-panel-achievements" tabindex="-1">ACHIEVEMENTS</button>
+      </div>
+      <section id="hangar-panel-aircraft" data-hangar-panel-aircraft role="tabpanel" aria-labelledby="hangar-tab-aircraft">
+        <p class="hangar-shell__section-note">Equip unlocked aircraft and inspect the requirements for the others.</p>
+        <div class="hangar-collection" data-hangar-collection></div>
+      </section>
+      <section id="hangar-panel-achievements" data-hangar-panel-achievements role="tabpanel" aria-labelledby="hangar-tab-achievements" hidden>
+        <p class="hangar-shell__section-note">Achievements and lifetime totals are verified by SkyRacer. Progress only advances after accepted server submissions.</p>
+        <ul class="hangar-achievements" data-hangar-achievements></ul>
+      </section>
+      <footer class="hangar-shell__footer">Elite rewards work in Classic, Daily and Friend Challenge flights when equipped. They grant a small earned advantage; the scoring formula, hazards and leaderboards remain unchanged.</footer>
+    </div>
   </dialog>
   <script type="module" src="/src/main.js"></script>
 </body>

@@ -23,6 +23,10 @@ import { DailyChallengePanel } from './ui/DailyChallengePanel.js';
 import { FriendChallengePanel } from './ui/FriendChallengePanel.js';
 import { FriendChallengeService } from './services/FriendChallengeService.js';
 import { ThemeController } from './ui/ThemeController.js';
+import { HangarPanel } from './ui/HangarPanel.js';
+import { AircraftSelection } from './hangar/AircraftSelection.js';
+import { eliteAbilityFor } from './hangar/EliteAbilities.js';
+import { HANGAR_AIRCRAFT } from './hangar/HangarCatalog.js';
 import { QuickMenu } from './ui/QuickMenu.js';
 import { shouldToggleFlightPause } from './ui/FlightKeyPolicy.js';
 import { createDailyRandom } from './utils/DailyChallenge.js';
@@ -144,6 +148,9 @@ const inputManager = new InputManager(window, {
 let animationFrameId = 0;
 let gameState = 'start';
 let gameMode = 'classic';
+// One server-authorized equipment snapshot per flight; resumes never swap abilities.
+let activeFlightAircraftId = 'ember-striker';
+let activeFlightAbility = eliteAbilityFor(activeFlightAircraftId);
 let activeDailyRun = null;
 let activeFriendRun = null;
 let lastClassicRunId = null;
@@ -187,6 +194,42 @@ const dailyPanel = new DailyChallengePanel({
         && !dailySubmitting,
 });
 const themeController = new ThemeController();
+const hangarUnlock = document.querySelector('[data-hangar-unlock]');
+const hangarUnlockName = document.querySelector('[data-hangar-unlock-name]');
+const hangarUnlockOpen = document.querySelector('[data-hangar-unlock-open]');
+function showHangarUnlock(ids) {
+    if (gameState !== 'terminated') return;
+    const matched = HANGAR_AIRCRAFT.find(a => ids.includes(a.id));
+    if (!matched) return;
+    hangarUnlockName.textContent = matched.name.toUpperCase() + ' UNLOCKED!';
+    hangarUnlock.hidden = false;
+}
+function openNewHangarUnlock() {
+    if (gameState !== 'terminated') return;
+    backToMainMenu();
+    hangarPanel.open();
+}
+const aircraftSelection = new AircraftSelection({
+    storage: (() => { try { return window.localStorage; } catch { return null; } })(),
+    theme: themeController.theme,
+    onChange: id => {
+        // Changing the interface theme during a paused/running flight cannot
+        // replace the aircraft or its earned ability mid-run.
+        if (gameState === 'start' || gameState === 'terminated') hovercraft.setAppearance(id);
+    },
+});
+const hangarPanel = new HangarPanel({
+    selection: aircraftSelection,
+    loadProgress: () => leaderboard.getHangarProgress(),
+    onNewUnlock: showHangarUnlock,
+    getTheme: () => themeController.theme,
+    canOpen: () => gameState === 'start' && !startTransitionPending && !friendStartPending,
+});
+const handleHangarThemeChange = () => {
+    aircraftSelection.setTheme(themeController.theme);
+    hangarPanel.refresh();
+};
+themeController.button?.addEventListener('click', handleHangarThemeChange);
 const friendPanel = new FriendChallengePanel({
     service: friendService,
     onOpen: () => { if (gameState === 'running') setGameState('paused'); },
@@ -268,6 +311,8 @@ function setGameState(nextState, terminationReason = 'collision') {
     const isTerminated = nextState === 'terminated';
     const isStart = nextState === 'start';
     stateOverlay.dataset.state = nextState;
+    hangarPanel.setAvailable(nextState === 'start');
+    if (nextState === 'start') hangarUnlock.hidden = true;
     overlayHero.hidden = !isStart;
     startFlightButton.hidden = !(isStart || nextState === 'paused');
     startFlightButton.textContent = nextState === 'paused' ? 'RESUME FLIGHT' : 'START FLIGHT';
@@ -319,6 +364,24 @@ function setGameState(nextState, terminationReason = 'collision') {
     }
 
     updateModeDisplays();
+    if (isTerminated && !wasTerminated && gameMode === 'classic' && onlineRunPromise
+        && scoreManager.currentScore > 0 && friendService.enabled) {
+        const nickname = friendService.getKnownNickname();
+        if (nickname) {
+            const registration = onlineRunPromise;
+            const finished = {
+                score: scoreManager.currentScore, rings: scoreManager.ringsCollected,
+                distance: scoreManager.distance, nickname,
+            };
+            void Promise.resolve(registration).then(runId => runId
+                ? friendService.submitClassic({ ...finished, runId })
+                : null).then(result => {
+                    if (result?.accepted) void hangarPanel.refreshProgress();
+                }).catch(error => {
+                    console.warn('[SkyRacer] Optional Hangar progression unavailable:', error);
+                });
+        }
+    }
     if (isTerminated && gameMode === 'friend' && activeFriendRun && !friendSubmitting) {
         const finishedRun = activeFriendRun;
         friendSubmitting = true;
@@ -329,6 +392,7 @@ function setGameState(nextState, terminationReason = 'collision') {
         }).then(result => {
             if (activeFriendRun === finishedRun) {
                 friendPanel.setVerifiedResult(result);
+                void hangarPanel.refreshProgress();
             }
         }).catch(error => {
             if (activeFriendRun === finishedRun) friendPanel.outcome.textContent =
@@ -397,6 +461,7 @@ function resetForNewMode() {
     scoreManager.reset();
     ringCollectionDeadline.reset();
     hovercraft.reset();
+    hovercraft.setAppearance(aircraftSelection.activeId);
     trackManager.reset({ random: Math.random });
     cameraDynamics.snapTo(hovercraft);
     wasBoosting = false;
@@ -486,6 +551,7 @@ async function submitDailyScore(nickname) {
             rings: scoreManager.ringsCollected, distance: scoreManager.distance,
         });
         dailyPersonalBest = result.personalBest;
+        void hangarPanel.refreshProgress();
         dailyLastError = '';
         if (activeDailyRun === run) {
             updateModeDisplays();
@@ -545,6 +611,11 @@ async function startRunning() {
             beginOnlineRun();
         }
         await audioPromise;
+        if (isNewRun) {
+            activeFlightAircraftId = aircraftSelection.activeId;
+            activeFlightAbility = eliteAbilityFor(activeFlightAircraftId, aircraftSelection.ownedIds);
+            hovercraft.setAppearance(activeFlightAircraftId);
+        }
         setGameState('running');
         clock.getDelta();
         if (!friendPanel.dialog.open && !dailyPanel.dialog.open
@@ -586,6 +657,7 @@ function restartRun() {
     ringCollectionDeadline.reset();
     updateRingDeadlineDisplay();
     hovercraft.reset();
+    hovercraft.setAppearance(aircraftSelection.activeId);
     if (gameMode === 'friend') {
         activeFriendRun = null;
         friendPanel.status.textContent = 'Use the original challenge link to start a new attempt.';
@@ -609,7 +681,7 @@ function restartRun() {
 function handleGameKey(event) {
     // A new flight or retry starts exclusively from START FLIGHT or FLY AGAIN,
     // not arbitrary keys, arrow movement or taps on the overlay.
-    if (helpDialog.open || leaderboardDialog.open || dailyPanel.dialog.open || friendPanel.dialog.open || quickMenu.opened) return;
+    if (helpDialog.open || leaderboardDialog.open || dailyPanel.dialog.open || friendPanel.dialog.open || hangarPanel.dialog.open || quickMenu.opened) return;
     if (shouldToggleFlightPause(gameState, event.code, event.repeat)) togglePause();
 }
 
@@ -746,6 +818,7 @@ async function submitOnlineScore() {
         if (!result?.accepted) throw new Error('The score was not accepted.');
         onlineSubmitted = true;
         lastClassicRunId = runId;
+        void hangarPanel.refreshProgress();
         friendPanel.updateActions();
         leaderboardForm.hidden = true;
         scoreSubmitButton.hidden = true;
@@ -879,7 +952,7 @@ function animate() {
             nearMisses,
             collided,
             collisionType,
-        } = trackManager.update(delta, hovercraft);
+        } = trackManager.update(delta, hovercraft, activeFlightAbility.ringCaptureRadius);
 
         // The countdown uses active-game delta, not wall-clock time. A ring
         // picked up on the expiration frame resets the deadline first.
@@ -890,7 +963,9 @@ function animate() {
         // frame. Ring removal has already happened inside TrackManager, so
         // discarding these counts would silently lose a legitimate collection.
         if (collectedRings > 0) {
-            if (collectedEnergyRings > 0) hovercraft.activateEnergyBoost();
+            if (collectedEnergyRings > 0) {
+                hovercraft.activateEnergyBoost(activeFlightAbility.energyBoostDuration);
+            }
             const earnedSpeedLevels = scoreManager.collectRings(collectedRings);
             if (earnedSpeedLevels > 0) {
                 hovercraft.setSpeedProgressionLevel(scoreManager.speedProgressionLevel);
@@ -938,7 +1013,8 @@ function animate() {
             wasBoosting = hasSpeedFx;
 
             cameraDynamics.update(delta, hovercraft, isBoosting, isSurging);
-            ringGuidance.update(trackManager.energyRings, hovercraft);
+            ringGuidance.update(trackManager.energyRings, hovercraft,
+                activeFlightAbility.ringCaptureRadius);
             const liveForwardSpeed = Math.max(0, -hovercraft.velocity.z);
             speedParticles.update(delta, camera, liveForwardSpeed, hasSpeedFx);
             audioEngine.update(liveForwardSpeed, hasSpeedFx);
@@ -1018,6 +1094,9 @@ function disposeApp() {
     dailyPanel.dispose();
     friendPanel.dispose();
     quickMenu.dispose();
+    themeController.button?.removeEventListener('click', handleHangarThemeChange);
+    hangarUnlockOpen.removeEventListener('click', openNewHangarUnlock);
+    hangarPanel.dispose();
     themeController.dispose();
     inputManager.destroy();
     collisionDebug?.dispose();
@@ -1063,8 +1142,10 @@ restartButton.addEventListener('click', restartRun);
 exitMenuButton.addEventListener('click', backToMainMenu);
 classicModeButton.addEventListener('click', returnToClassic);
 dailySubmitButton.addEventListener('click', openDailyResults);
+hangarUnlockOpen.addEventListener('click', openNewHangarUnlock);
 window.addEventListener('pagehide', disposeApp, { once: true });
 setGameState('start');
+if (leaderboard.enabled) void hangarPanel.refreshProgress();
 updateHud();
 resizeViewport();
 animate();

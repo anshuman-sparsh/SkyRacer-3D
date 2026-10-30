@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GroundAnchor } from './GroundAnchor.js';
+import { appearanceFor } from '../hangar/AircraftAppearances.js';
 
 const MAX_ROLL = THREE.MathUtils.degToRad(30);
 const MAX_PITCH = THREE.MathUtils.degToRad(14);
@@ -116,6 +117,7 @@ export class HoverCraft extends THREE.Group {
         this.engineGlows = [];
         this.engineTrails = [];
         this.#buildModel();
+        this.setAppearance('ember-striker');
 
         this.position.set(0, 3, 0);
         this.name = 'HoverCraft';
@@ -140,6 +142,8 @@ export class HoverCraft extends THREE.Group {
         });
         const glowMaterial = new THREE.MeshBasicMaterial({ color: 0x8cfff0 });
         const hotCoreMaterial = new THREE.MeshBasicMaterial({ color: 0xfff2a6 });
+
+        this.paintMaterials = { hullMaterial, trimMaterial, canopyMaterial, glowMaterial, hotCoreMaterial };
 
         // A tapered hexagonal fuselage provides a crisp jet silhouette at very low
         // vertex cost. Forward travel is negative Z, so the cone points that way.
@@ -213,6 +217,62 @@ export class HoverCraft extends THREE.Group {
         tailFin.position.set(0, 0.38, 1.25);
         tailFin.rotation.x = THREE.MathUtils.degToRad(-12);
         this.visual.add(tailFin);
+        // Optional low-poly cosmetic accents. These intentionally never enter
+        // COLLISION_SHAPES; all aircraft preserve the same competitive hitbox.
+        this.styleDetails = new Map();
+        const makeDetail = (profile, pieces) => {
+            const group = new THREE.Group();
+            const material = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x303030 });
+            for (const [size, position, rotation] of pieces) {
+                const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
+                mesh.position.set(...position);
+                if (rotation) mesh.rotation.set(...rotation);
+                group.add(mesh);
+            }
+            group.visible = false;
+            this.visual.add(group);
+            this.styleDetails.set(profile, { group, material });
+        };
+        makeDetail('arrow', [
+            [[0.22,0.07,1.9],[-1.34,0.01,0.72],[0,-0.27,0]],
+            [[0.22,0.07,1.9],[1.34,0.01,0.72],[0,0.27,0]],
+        ]);
+        makeDetail('void', [
+            [[0.48,0.09,1.0],[-1.73,0.05,1.1],[0,-0.5,0]],
+            [[0.48,0.09,1.0],[1.73,0.05,1.1],[0,0.5,0]],
+            [[0.28,0.40,0.65],[0,0.3,1.40],[0.18,0,0]],
+        ]);
+        makeDetail('nova', [
+            [[0.22,0.11,1.6],[-1.74,0.02,0.80],[0,-0.42,0]],
+            [[0.22,0.11,1.6],[1.74,0.02,0.80],[0,0.42,0]],
+            [[0.36,0.10,0.9],[0,0.24,-1.2],[0,0,0]],
+        ]);
+        makeDetail('apex', [
+            [[0.36,0.12,1.5],[-1.7,0.03,0.85],[0,-0.32,0]],
+            [[0.36,0.12,1.5],[1.7,0.03,0.85],[0,0.32,0]],
+            [[0.32,0.55,0.72],[0,0.42,1.36],[0.22,0,0]],
+        ]);
+    }
+
+    setAppearance(id) {
+        const paint = appearanceFor(id);
+        this.appearanceId = id;
+        const m = this.paintMaterials;
+        m.hullMaterial.color.setHex(paint.hull);
+        m.hullMaterial.emissive.setHex(paint.hullGlow);
+        m.trimMaterial.color.setHex(paint.trim);
+        m.trimMaterial.emissive.setHex(paint.trimGlow);
+        m.canopyMaterial.color.setHex(paint.canopy);
+        m.canopyMaterial.emissive.setHex(paint.canopyGlow);
+        m.glowMaterial.color.setHex(paint.exhaust);
+        m.hotCoreMaterial.color.setHex(paint.hotCore);
+        for (const trail of this.engineTrails) trail.material.color.setHex(paint.trail);
+        this.groundAnchor.material?.color?.setHex(paint.exhaust);
+        for (const [profile, detail] of this.styleDetails) {
+            detail.group.visible = profile === paint.profile;
+            detail.material.color.setHex(paint.detail);
+            detail.material.emissive.setHex(paint.hullGlow);
+        }
     }
 
     update(delta, inputState) {

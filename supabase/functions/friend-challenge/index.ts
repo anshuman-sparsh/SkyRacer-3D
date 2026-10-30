@@ -1,5 +1,4 @@
-// M4-B basic lifecycle. Server snapshots target from an already accepted Classic run.
-// More advanced throttling and scoring hardening are reserved for M4-C.
+// M4-C: PostgreSQL owns score validation, rate limits and atomic replay protection.
 import { withSupabase } from 'npm:@supabase/server@^1';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const fail = (error: string, status = 400) => Response.json({ error }, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -35,32 +34,34 @@ export default {
     } catch { return fail('Invalid JSON.'); }
     if (body.action === 'create') {
       if (typeof body.runId !== 'string' || !UUID.test(body.runId)) return fail('A verified Classic run is required.');
-      const { data: run, error: re } = await db.from('run_sessions')
-        .select('run_id,user_id,score,submitted_at').eq('run_id', body.runId).eq('user_id', uid).maybeSingle();
-      if (re) return fail('Cannot verify Classic score.', 503);
-      if (!run?.submitted_at || !Number.isSafeInteger(run.score) || run.score < 1) return fail('Classic run not yet verified.', 409);
-      const { data: profile, error: pe } = await db.from('player_profiles')
-        .select('nickname').eq('user_id', uid).maybeSingle();
-      if (pe || !profile?.nickname) return fail('Register your pilot nickname first.', 409);
-      const { data, error } = await db.from('friend_challenges')
-        .insert({ creator_user_id: uid, source_run_id: run.run_id,
-          target_score: run.score, creator_nickname: profile.nickname })
-        .select('id,creator_nickname,target_score,expires_at').single();
-      if (error) return fail('Could not create a challenge.', 503);
-      return ok(snapshot(data));
+      const { data, error } = await db.rpc('issue_friend_challenge', {
+        p_user_id: uid, p_run_id: body.runId,
+      });
+      if (error) {
+        if (error.message?.includes('FRIEND_RATE_LIMIT')) return fail('Too many challenges created. Try again later.', 429);
+        if (error.message?.includes('FRIEND_SOURCE_UNVERIFIED')) return fail('This Classic run was not verified.', 409);
+        if (error.message?.includes('FRIEND_NICKNAME_REQUIRED')) return fail('Register your pilot nickname first.', 409);
+        if (error.message?.includes('FRIEND_CHALLENGE_EXPIRED')) return fail('That challenge has expired.', 410);
+        return fail('Could not create a challenge.', 503);
+      }
+      if (!data?.[0]) return fail('Could not create a challenge.', 503);
+      return ok(snapshot(data[0]));
     }
     if (body.action === 'start') {
       if (typeof body.challengeId !== 'string' || !/^[0-9a-f]{32}$/i.test(body.challengeId)) return fail('Invalid challenge ID.');
       const uuid = body.challengeId.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
-      const { data: challenge, error } = await db.from('friend_challenges')
-        .select('id,expires_at,creator_user_id,target_score').eq('id', uuid).maybeSingle();
-      if (error || !challenge) return fail('Challenge not found.', 404);
-      if (Date.parse(challenge.expires_at) <= now) return fail('Challenge expired.', 410);
-      if (challenge.creator_user_id === uid) return fail('You cannot challenge yourself.', 409);
-      const { data: run, error: insertError } = await db.from('friend_runs')
-        .insert({ challenge_id: uuid, challenger_user_id: uid }).select('run_id').single();
-      if (insertError) return fail('Could not register attempt.', 503);
-      return ok({ runId: run.run_id, challengeId: body.challengeId });
+      const { data, error } = await db.rpc('register_friend_attempt', {
+        p_user_id: uid, p_challenge_id: uuid,
+      });
+      if (error) {
+        if (error.message?.includes('FRIEND_RATE_LIMIT')) return fail('Too many attempts. Try again shortly.', 429);
+        if (error.message?.includes('FRIEND_SELF_CHALLENGE')) return fail('You cannot challenge yourself.', 409);
+        if (error.message?.includes('FRIEND_CHALLENGE_EXPIRED')) return fail('Challenge expired.', 410);
+        if (error.message?.includes('FRIEND_NOT_FOUND')) return fail('Challenge not found.', 404);
+        return fail('Could not register attempt.', 503);
+      }
+      if (!UUID.test(data ?? '')) return fail('Attempt registration failed.', 503);
+      return ok({ runId: data, challengeId: body.challengeId });
     }
     if (body.action === 'finish') {
       if (typeof body.runId !== 'string' || !UUID.test(body.runId)
@@ -68,23 +69,20 @@ export default {
           || !Number.isSafeInteger(body.rings) || body.rings < 0 || body.rings > 100000
           || typeof body.distance !== 'number' || !Number.isFinite(body.distance) || body.distance < 0) return fail('Invalid result.');
       if (Math.abs(Math.floor(body.distance * 10 + body.rings * 50) - body.score) > 1) return fail('Inconsistent score.');
-      const { data: run, error: runError } = await db.from('friend_runs')
-        .select('run_id,submitted_at,started_at,challenge_id,friend_challenges(target_score,expires_at)')
-        .eq('run_id', body.runId).eq('challenger_user_id', uid).maybeSingle();
-      if (runError || !run || run.submitted_at) return fail('Attempt unavailable or already completed.', 409);
-      const ch = Array.isArray(run.friend_challenges) ? run.friend_challenges[0] : run.friend_challenges;
-      if (!ch || Date.parse(ch.expires_at) <= now) return fail('Challenge expired.', 410);
-      const elapsed = (now - Date.parse(run.started_at)) / 1000;
-      if (!Number.isFinite(elapsed) || elapsed < 2 || elapsed > 3600
-        || body.distance > elapsed * 100 + 60 || body.rings > body.distance / 12 + 8) return fail('Result could not be verified.');
-      const won = body.score > ch.target_score;
-      const { data, error } = await db.from('friend_runs')
-        .update({ submitted_at: new Date(now).toISOString(),
-          score: body.score, rings: body.rings, distance: body.distance, won })
-        .eq('run_id', body.runId).eq('challenger_user_id', uid).is('submitted_at', null)
-        .select('run_id,won,score').maybeSingle();
-      if (error || !data) return fail('Attempt already completed or unavailable.', 409);
-      return ok({ accepted: true, won: data.won, score: data.score, targetScore: ch.target_score });
+      const { data, error } = await db.rpc('accept_friend_result', {
+        p_user_id: uid, p_run_id: body.runId, p_score: body.score,
+        p_rings: body.rings, p_distance: body.distance,
+      });
+      if (error) {
+        if (error.message?.includes('FRIEND_RATE_LIMIT')) return fail('Too many submissions. Try again later.', 429);
+        if (error.message?.includes('FRIEND_RUN_UNAVAILABLE')) return fail('Attempt unavailable or already completed.', 409);
+        if (error.message?.includes('FRIEND_CHALLENGE_EXPIRED')) return fail('Challenge expired.', 410);
+        if (error.message?.includes('FRIEND_INVALID_RESULT')) return fail('Result could not be verified.', 400);
+        return fail('Could not verify this result.', 503);
+      }
+      if (!data?.[0]?.accepted) return fail('Result was not accepted.', 503);
+      return ok({ accepted: true, won: data[0].won,
+        score: data[0].score, targetScore: data[0].target_score });
     }
     return fail('Unknown action.');
   }),

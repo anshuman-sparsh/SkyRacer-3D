@@ -21,6 +21,7 @@ import { LeaderboardService } from './services/LeaderboardService.js';
 import { DailyChallengeService } from './services/DailyChallengeService.js';
 import { DailyChallengePanel } from './ui/DailyChallengePanel.js';
 import { FriendChallengePanel } from './ui/FriendChallengePanel.js';
+import { FriendChallengeService } from './services/FriendChallengeService.js';
 import { ThemeController } from './ui/ThemeController.js';
 import { QuickMenu } from './ui/QuickMenu.js';
 import { shouldToggleFlightPause } from './ui/FlightKeyPolicy.js';
@@ -67,7 +68,7 @@ const ringCollectionDeadline = new RingCollectionDeadline();
 const leaderboard = new LeaderboardService();
 const dailyService = new DailyChallengeService(leaderboard);
 // M4-A frontend only: server-issued challenges are unavailable until M4-B.
-const friendService = { enabled: false };
+const friendService = new FriendChallengeService(leaderboard);
 const analytics = new GameplayAnalyticsService({
     submitEvent: leaderboard.enabled ? (event) => leaderboard.sendGameplayEvent(event) : null,
 });
@@ -144,6 +145,9 @@ let animationFrameId = 0;
 let gameState = 'start';
 let gameMode = 'classic';
 let activeDailyRun = null;
+let activeFriendRun = null;
+let lastClassicRunId = null;
+let friendSubmitting = false;
 let dailySubmitting = false;
 let dailyPersonalBest = null;
 let dailyLastError = '';
@@ -185,13 +189,14 @@ const themeController = new ThemeController();
 const friendPanel = new FriendChallengePanel({
     service: friendService,
     onOpen: () => { if (gameState === 'running') setGameState('paused'); },
-    getResult: () => gameMode === 'classic' && gameState === 'terminated'
+    getResult: () => gameMode === 'classic' && gameState === 'terminated' && onlineSubmitted
         ? { score: scoreManager.currentScore, rings: scoreManager.ringsCollected,
-            distance: scoreManager.distance, runId: null }
+            distance: scoreManager.distance, runId: lastClassicRunId }
         : null,
     canCreate: () => gameMode === 'classic' && gameState === 'terminated'
-        && scoreManager.currentScore > 0 && !startTransitionPending,
-    onAccept: async () => false, // M4-B/C will register and launch verified runs.
+        && scoreManager.currentScore > 0 && onlineSubmitted && Boolean(lastClassicRunId)
+        && !startTransitionPending,
+    onAccept: launchFriendChallenge,
 });
 const quickMenu = new QuickMenu({
     onOpen: () => {
@@ -313,6 +318,23 @@ function setGameState(nextState, terminationReason = 'collision') {
     }
 
     updateModeDisplays();
+    if (isTerminated && gameMode === 'friend' && activeFriendRun && !friendSubmitting) {
+        const finishedRun = activeFriendRun;
+        friendSubmitting = true;
+        void friendService.finish(finishedRun.runId, {
+            score: scoreManager.currentScore, rings: scoreManager.ringsCollected,
+            distance: scoreManager.distance,
+        }).then(result => {
+            if (activeFriendRun === finishedRun) {
+                friendPanel.outcome.textContent = result.won
+                    ? 'Challenge beaten — verified by SkyRacer!'
+                    : 'Good flight! You did not beat this challenge score.';
+            }
+        }).catch(error => {
+            if (activeFriendRun === finishedRun) friendPanel.outcome.textContent =
+                'Could not verify this result: ' + error.message;
+        }).finally(() => { friendSubmitting = false; });
+    }
     if (isTerminated && gameMode === 'daily' && activeDailyRun
         && !activeDailyRun.submitted && activeDailyRun.nickname
         && scoreManager.currentScore > 0) {
@@ -333,14 +355,15 @@ function setGameState(nextState, terminationReason = 'collision') {
 /** Daily's local score and course are isolated from the Classic leaderboard. */
 function updateModeDisplays() {
     const daily = gameMode === 'daily';
-    modeLabel.textContent = daily && activeDailyRun
-        ? 'DAILY CHALLENGE // ' + activeDailyRun.date
+    const friend = gameMode === 'friend';
+    modeLabel.textContent = friend ? 'FRIEND CHALLENGE'
+        : daily && activeDailyRun ? 'DAILY CHALLENGE // ' + activeDailyRun.date
         : daily ? 'DAILY CHALLENGE' : 'SKYRACER // FLIGHT 01';
     modeLabel.classList.toggle('is-daily', daily);
-    bestBadgeElement.hidden = daily;
-    bestRingsBadgeElement.hidden = daily;
-    overlayBestElement.hidden = daily;
-    overlayBestRingsElement.hidden = daily;
+    bestBadgeElement.hidden = daily || friend;
+    bestRingsBadgeElement.hidden = daily || friend;
+    overlayBestElement.hidden = daily || friend;
+    overlayBestRingsElement.hidden = daily || friend;
 
     const canShowOptions = gameState === 'start' || gameState === 'terminated';
     const canSubmit = daily && gameState === 'terminated'
@@ -361,6 +384,11 @@ function updateModeDisplays() {
         if (gameState === 'paused') stateTitle.textContent = 'DAILY CHALLENGE PAUSED';
         if (gameState === 'terminated') stateTitle.textContent = 'DAILY RUN ENDED';
     }
+    if (friend) {
+        if (gameState === 'start') stateTitle.textContent = 'FRIEND CHALLENGE — READY';
+        if (gameState === 'paused') stateTitle.textContent = 'FRIEND CHALLENGE PAUSED';
+        if (gameState === 'terminated') stateTitle.textContent = 'FRIEND RUN ENDED';
+    }
     dailyPanel.updateActions();
     friendPanel.updateActions();
 }
@@ -375,6 +403,7 @@ function resetForNewMode() {
     activeRunSeconds = 0;
     onlineRunPromise = null;
     onlineSubmitted = false;
+    lastClassicRunId = null;
     lastBestText = '';
     lastBestRingsText = '';
     lastBestRecord = false;
@@ -385,7 +414,7 @@ function resetForNewMode() {
 
 function backToMainMenu() {
     if (startTransitionPending || gameState !== 'terminated') return;
-    if (gameMode === 'daily') {
+    if (gameMode === 'daily' || gameMode === 'friend') {
         returnToClassic();
     } else {
         resetForNewMode();
@@ -393,9 +422,11 @@ function backToMainMenu() {
 }
 
 function returnToClassic() {
-    if (startTransitionPending || gameMode !== 'daily'
+    if (startTransitionPending || (gameMode !== 'daily' && gameMode !== 'friend')
         || (gameState !== 'start' && gameState !== 'terminated')) return;
     activeDailyRun = null;
+    activeFriendRun = null;
+    friendSubmitting = false;
     dailySubmitting = false;
     dailyLastError = '';
     gameMode = 'classic';
@@ -414,6 +445,19 @@ async function launchDailyChallenge() {
     dailyPersonalBest = dailyPanel.today?.me?.score ?? null;
     dailyLastError = '';
     resetForNewMode();
+    return startRunning();
+}
+
+async function launchFriendChallenge(challenge) {
+    if (startTransitionPending || (gameState !== 'start' && gameState !== 'terminated')) return false;
+    if (!challenge || challenge.expired) throw new Error('This challenge is no longer active.');
+    const registered = await friendService.start(challenge.id);
+    gameMode = 'friend';
+    scoreManager = new ScoreManager({ recordsEnabled: false });
+    activeDailyRun = null;
+    resetForNewMode();
+    activeFriendRun = registered;
+    friendSubmitting = false;
     return startRunning();
 }
 
@@ -450,6 +494,7 @@ async function submitDailyScore(nickname) {
 
 function beginOnlineRun() {
     onlineSubmitted = false;
+    lastClassicRunId = null;
 
     onlineRunPromise = leaderboard.enabled
         ? leaderboard.beginRun().catch((error) => {
@@ -467,7 +512,9 @@ async function startRunning() {
     try {
         // Start audio while still handling the user's gesture on mobile.
         const audioPromise = audioEngine.start();
-        if (isNewRun && gameMode === 'daily') {
+        if (isNewRun && gameMode === 'friend') {
+            if (!activeFriendRun?.runId) throw new Error('Friend attempt was not registered.');
+        } else if (isNewRun && gameMode === 'daily') {
             if (!activeDailyRun || activeDailyRun.submitted) {
                 activeDailyRun = await dailyService.begin();
             }
@@ -489,7 +536,7 @@ async function startRunning() {
         await audioPromise;
         setGameState('running');
         clock.getDelta();
-        if (!dailyPanel.dialog.open
+        if (!friendPanel.dialog.open && !dailyPanel.dialog.open
             && document.activeElement?.matches?.(
                 '[data-daily-open], [data-daily-menu], [data-quick-open], ' +
                 '[data-start-flight], [data-restart], [data-pause-toggle]'
@@ -528,6 +575,12 @@ function restartRun() {
     ringCollectionDeadline.reset();
     updateRingDeadlineDisplay();
     hovercraft.reset();
+    if (gameMode === 'friend') {
+        activeFriendRun = null;
+        friendPanel.status.textContent = 'Use the original challenge link to start a new attempt.';
+        returnToClassic();
+        return;
+    }
     if (gameMode === 'daily') {
         activeDailyRun = null;
         dailyLastError = '';
@@ -681,6 +734,8 @@ async function submitOnlineScore() {
         });
         if (!result?.accepted) throw new Error('The score was not accepted.');
         onlineSubmitted = true;
+        lastClassicRunId = runId;
+        friendPanel.updateActions();
         leaderboardForm.hidden = true;
         scoreSubmitButton.hidden = true;
         await refreshLeaderboard();

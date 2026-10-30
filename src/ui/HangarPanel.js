@@ -6,7 +6,11 @@ import { HangarPreview } from '../hangar/HangarPreview.js';
  * Both free starters are equipable; advanced aircraft remain locked until M5-C.
  */
 export class HangarPanel {
-    constructor({ getTheme, canOpen, selection }) {
+    constructor({ getTheme, canOpen, selection, loadProgress = null }) {
+        this.loadProgress=loadProgress;
+        this.progress=null;
+        this.loading=false;
+        this.status=document.querySelector('[data-hangar-progress-status]');
         this.selection = selection;
         this.getTheme = getTheme;
         this.canOpen = canOpen;
@@ -80,9 +84,9 @@ export class HangarPanel {
         this.defaultName.textContent = chosen.name;
         this.preview.dataset.aircraft = chosen.id;
         this.viewer.setAircraft(chosen.id);
-        const owned = chosen.tier === 'Starter';
+        const owned = this.selection.ownedIds.includes(chosen.id);
         this.equipButton.disabled = !owned || chosen.id === equipped;
-        this.equipButton.textContent = !owned ? 'LOCKED · EARN IN M5-C'
+        this.equipButton.textContent = !owned ? 'LOCKED · ACHIEVEMENT REQUIRED'
             : chosen.id === equipped ? 'EQUIPPED' : 'EQUIP AIRCRAFT';
         this.matchButton.disabled = this.selection.preference === 'match-theme';
         this.selectedStatus.textContent = this.selection.preference === 'match-theme'
@@ -109,8 +113,48 @@ export class HangarPanel {
         this.setTab('aircraft');
         this.dialog.showModal();
         this.viewer.open(this.previewId);
+        void this.refreshProgress();
         this.closeButton.focus({ preventScroll: true });
         return true;
+    }
+
+    async refreshProgress() {
+        if (!this.loadProgress || this.loading) return;
+        this.loading=true;
+        this.status.textContent='Checking verified pilot progress…';
+        try {
+            const data=await this.loadProgress();
+            if (!data || !Array.isArray(data.unlockedIds)) throw Error('Unexpected progress response');
+            this.progress=data;
+            this.selection.setUnlocked(data.unlockedIds);
+            this.status.textContent = 'Verified flights: '+data.verifiedRuns+' · Rings: '+data.totalRings
+                +' · Distance: '+Math.floor(data.totalDistance).toLocaleString();
+            this.refresh();
+            this.renderProgress();
+        } catch(error) {
+            this.status.textContent='Progress unavailable: '+error.message+'. Unverified rewards stay locked.';
+        } finally { this.loading=false; }
+    }
+
+    renderProgress() {
+        if (!this.progress) return;
+        const stats=this.progress;
+        const targets=[
+            ['verifiedRuns',1],['totalRings',100],['totalDistance',10000],['friendWins',10],
+        ];
+        for (const [i,item] of [...this.achievements.children].entries()) {
+            const [key,target]=targets[i] ?? [];
+            if (!key) continue;
+            const actual=Math.max(0,Number(stats[key])||0);
+            item.querySelector('[data-achievement-progress]').textContent =
+                Math.min(actual,target).toLocaleString()+' / '+target.toLocaleString();
+        }
+        for (const item of this.collection.children) {
+            const id=item.dataset.aircraft;
+            const owned=this.selection.ownedIds.includes(id);
+            item.querySelector('.hangar-aircraft__tier').textContent =
+                owned ? 'UNLOCKED · EQUIPABLE' : 'LOCKED · ACHIEVEMENT';
+        }
     }
 
     setTab(tab) {
@@ -169,7 +213,10 @@ export class HangarPanel {
             title.textContent = milestone.title;
             const description = document.createElement('span');
             description.textContent = milestone.criterion;
-            item.append(title, description);
+            const progress=document.createElement('span');
+            progress.dataset.achievementProgress='';
+            progress.textContent='Not verified yet';
+            item.append(title, description, progress);
             fragment.append(item);
         }
         this.achievements.append(fragment);

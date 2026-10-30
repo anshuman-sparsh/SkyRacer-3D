@@ -154,6 +154,23 @@ export class HangarPanel {
             const owned=this.selection.ownedIds.includes(id);
             item.querySelector('.hangar-aircraft__tier').textContent =
                 owned ? 'UNLOCKED · EQUIPABLE' : 'LOCKED · ACHIEVEMENT';
+            const progress=item.querySelector('[data-aircraft-progress]');
+            if (!progress) continue;
+            const required = {
+                'silver-arrow': [['totalRings',100]],
+                'voidrunner': [['totalDistance',10000],['totalRings',500]],
+                'nova-vortex': [['totalDistance',25000],['totalRings',1500]],
+                'apex-overdrive': [['friendWins',10],['dailyCompletions',10]],
+            }[id] || [];
+            progress.textContent = required.length
+                ? required.map(([key,goal])=>{
+                    const label = {totalRings:'rings',totalDistance:'distance',
+                        friendWins:'wins',dailyCompletions:'daily days'}[key];
+                    return Math.min(Math.floor(Number(stats[key])||0),goal).toLocaleString()
+                        +'/'+goal.toLocaleString()+' '+label;
+                }).join(' · ')
+                : 'Free starter';
+
         }
     }
 
@@ -192,7 +209,10 @@ export class HangarPanel {
             label.dataset.hangarThemeDefault = '';
             label.textContent = 'Equipped';
             label.hidden = true;
-            details.append(heading, tier, requirement, label);
+            const progress = document.createElement('p');
+            progress.dataset.aircraftProgress = '';
+            progress.textContent = aircraft.tier === 'Starter' ? 'Free starter' : 'Checking progress…';
+            details.append(heading, tier, requirement, progress, label);
             const inspect = document.createElement('button');
             inspect.type = 'button';
             inspect.className = 'hangar-aircraft__inspect';

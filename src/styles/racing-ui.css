@@ -843,3 +843,10 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
 .hangar-unlock button {cursor:pointer; border:1px solid var(--sr-line);background:var(--sr-panel);border-radius:7px;padding:9px 12px;color:var(--sr-text);font:700 12px/1.3 var(--sr-font-body);}
 .hangar-aircraft__details [data-aircraft-progress] {color:var(--sr-accent-bright);font:600 11px/1.5 var(--sr-font-data);overflow-wrap:anywhere;}
 .hangar-achievements [data-achievement-progress] {color:var(--sr-accent-bright);font:650 12px/1.5 var(--sr-font-data);}
+
+/* M5-E: visibility is state-driven. Component display declarations must never
+   override the HTML hidden attribute (including before JS initializes). */
+.hangar-entry[hidden],
+.hangar-unlock[hidden],
+.hangar-aircraft__default[hidden],
+.hangar-shell [hidden] { display: none !important; }

@@ -818,3 +818,20 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
 .hangar-shell__footer { padding:17px 0 10px; }
 @media(max-width:740px) { .hangar-collection { grid-template-columns:repeat(2,minmax(0,1fr)); } .hangar-shell__inner { padding:18px; } }
 @media(max-width:470px) { .hangar-entry { flex-wrap:wrap; } .hangar-entry__button { width:100%; } .hangar-collection { grid-template-columns:1fr; } .hangar-shell__close { font-size:10px; padding:9px; } .hangar-preview { min-height:190px; } }
+
+/* M5-B: actual 3D Hangar viewport and accessible aircraft selection. */
+.hangar-preview__canvas { position:absolute; inset:0; z-index:1; cursor:grab; touch-action:pan-y; }
+.hangar-preview__canvas:active { cursor:grabbing; }
+.hangar-preview__canvas canvas { display:block; width:100%; height:100%; }
+.hangar-preview__canvas:not(.is-fallback) + .hangar-preview__silhouette { display:none; }
+.hangar-preview__identity { z-index:2; pointer-events:none; }
+.hangar-equipped { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:13px; }
+.hangar-equipped > span { flex:1 1 175px; font:700 12px/1.45 var(--sr-font-data); color:var(--sr-accent-bright); }
+.hangar-equipped button { background:var(--sr-accent-soft); color:var(--sr-text); border:1px solid var(--sr-line); border-radius:9px; padding:10px 13px; font:700 12px/1.3 var(--sr-font-body); cursor:pointer; }
+.hangar-equipped button:disabled { opacity:.53; cursor:default; }
+.hangar-aircraft { position:relative; padding-bottom:49px; }
+.hangar-aircraft.is-preview { box-shadow:inset 0 0 0 1px var(--sr-accent-bright); }
+.hangar-aircraft__inspect { position:absolute; bottom:10px; right:12px; min-height:29px; background:transparent; border:1px solid var(--sr-line); border-radius:6px; color:var(--sr-accent-bright); padding:5px 12px; cursor:pointer; font:700 11px/1.3 var(--sr-font-body); }
+.hangar-aircraft__inspect:hover { background:var(--sr-accent-soft); }
+.hangar-aircraft__inspect:focus-visible { outline:2px solid var(--sr-accent-bright); outline-offset:2px; }
+@media(max-width:470px) { .hangar-equipped button { flex:1 1 125px; } .hangar-preview__silhouette { width:150px; } }

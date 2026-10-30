@@ -284,6 +284,13 @@
         <button class="daily-action" type="button" data-daily-menu hidden>DAILY CHALLENGE</button>
         <button class="daily-action" type="button" data-classic-mode hidden>RETURN TO CLASSIC</button>
       </div>
+      <div class="hangar-entry" data-hangar-entry hidden>
+        <div class="hangar-entry__identity">
+          <span class="hangar-entry__eyebrow">YOUR AIRCRAFT · THEME-LINKED PREVIEW</span>
+          <strong data-hangar-current>Ember Striker</strong>
+        </div>
+        <button type="button" class="hangar-entry__button" data-hangar-open aria-haspopup="dialog" aria-controls="skyracer-hangar">EXPLORE HANGAR <span aria-hidden="true">›</span></button>
+      </div>
     </div>
   </div>
   <button class="quick-menu-trigger" type="button" data-quick-open aria-expanded="false" aria-controls="skyracer-quick-menu" aria-label="Open game menu">MENU</button>
@@ -419,6 +426,43 @@
       <div class="friend-share__row"><input type="url" id="friend-share-link" data-friend-link readonly placeholder="Verified challenge link will appear here" /><button type="button" class="daily-action" data-friend-copy disabled>COPY LINK</button></div>
     </div>
     <p class="help-dialog__note">Any verified completed Classic flight can create your first challenge. Each new challenge must beat your last challenge score. A tie does not win. Links contain only an opaque server-issued ID.</p>
+  </dialog>
+  <dialog id="skyracer-hangar" class="hangar-shell" data-hangar-dialog aria-labelledby="hangar-title" aria-describedby="hangar-intro">
+    <div class="hangar-shell__inner">
+      <header class="hangar-shell__header">
+        <div>
+          <div class="hangar-shell__eyebrow">SKYRACER // AIRCRAFT COLLECTION</div>
+          <h2 id="hangar-title">THE HANGAR</h2>
+        </div>
+        <button type="button" class="hangar-shell__close" data-hangar-close aria-label="Return to pre-flight screen">← BACK TO FLIGHT</button>
+      </header>
+      <p class="hangar-shell__intro" id="hangar-intro">Explore the aircraft lineup and achievements. This is the collection preview; usable aircraft models, unlocks, and progression arrive in the next M5 stages.</p>
+      <div class="hangar-preview" data-hangar-preview data-aircraft="ember-striker">
+        <div class="hangar-preview__grid" aria-hidden="true"></div>
+        <svg class="hangar-preview__silhouette" viewBox="0 0 340 210" aria-hidden="true" focusable="false">
+          <path d="M170 12 L186 88 L291 137 L291 155 L202 140 L201 175 L220 188 L220 198 L170 190 L120 198 L120 188 L139 175 L138 140 L49 155 L49 137 L154 88 Z" fill="currentColor" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+          <path d="M170 30 L170 179 M146 133 L194 133 M153 95 L187 95" stroke="var(--sr-bg)" stroke-width="5" stroke-linecap="round"/>
+        </svg>
+        <div class="hangar-preview__identity">
+          <span>THEME DEFAULT · CONCEPT SILHOUETTE</span>
+          <strong data-hangar-default-name>Ember Striker</strong>
+          <small>3D models and equipped skins arrive in M5-B</small>
+        </div>
+      </div>
+      <div class="hangar-shell__tabs" role="tablist" aria-label="Hangar sections">
+        <button type="button" data-hangar-tab-aircraft id="hangar-tab-aircraft" role="tab" aria-selected="true" aria-controls="hangar-panel-aircraft">AIRCRAFT</button>
+        <button type="button" data-hangar-tab-achievements id="hangar-tab-achievements" role="tab" aria-selected="false" aria-controls="hangar-panel-achievements" tabindex="-1">ACHIEVEMENTS</button>
+      </div>
+      <section id="hangar-panel-aircraft" data-hangar-panel-aircraft role="tabpanel" aria-labelledby="hangar-tab-aircraft">
+        <p class="hangar-shell__section-note">Two free theme-linked starter designs and four planned milestone aircraft. Selection is not enabled in M5-A.</p>
+        <div class="hangar-collection" data-hangar-collection></div>
+      </section>
+      <section id="hangar-panel-achievements" data-hangar-panel-achievements role="tabpanel" aria-labelledby="hangar-tab-achievements" hidden>
+        <p class="hangar-shell__section-note">Achievement milestones are planned here. Verified progress and rewards will begin in M5-C.</p>
+        <ul class="hangar-achievements" data-hangar-achievements></ul>
+      </section>
+      <footer class="hangar-shell__footer">Aircraft selection will remain separate from the existing Menu. Enhanced abilities, when added later, will be restricted to unranked flights.</footer>
+    </div>
   </dialog>
   <script type="module" src="/src/main.js"></script>
 </body>

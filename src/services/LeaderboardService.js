@@ -175,6 +175,28 @@ export class LeaderboardService {
         return asJson(response);
     }
 
+    /** M4 shares the existing anonymous auth session; never exposes a service key. */
+    async requestFriendChallenge(method = 'GET', payload = null, challengeId = null, retry = true) {
+        if (!this.enabled) throw new Error('Friend Challenges require a connection.');
+        const session = await this.#ensureSession();
+        const suffix = challengeId ? '?challenge=' + encodeURIComponent(challengeId) : '';
+        const response = await this.fetchImpl(this.url + '/functions/v1/friend-challenge' + suffix, {
+            method,
+            headers: {
+                apikey: this.key,
+                Authorization: 'Bearer ' + session.access_token,
+                ...(payload ? { 'Content-Type': 'application/json' } : {}),
+            },
+            ...(payload ? { body: JSON.stringify(payload) } : {}),
+            cache: 'no-store',
+        });
+        if (response.status === 401 && retry) {
+            await this.#ensureSession(true);
+            return this.requestFriendChallenge(method, payload, challengeId, false);
+        }
+        return asJson(response);
+    }
+
     rememberNickname(nickname) {
         if (/^[A-Za-z0-9_]{3,16}$/.test(nickname)) this.#save(NAME_KEY, nickname);
     }

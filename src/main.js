@@ -148,6 +148,7 @@ let activeDailyRun = null;
 let activeFriendRun = null;
 let lastClassicRunId = null;
 let friendSubmitting = false;
+let friendStartPending = false;
 let dailySubmitting = false;
 let dailyPersonalBest = null;
 let dailyLastError = '';
@@ -321,14 +322,13 @@ function setGameState(nextState, terminationReason = 'collision') {
     if (isTerminated && gameMode === 'friend' && activeFriendRun && !friendSubmitting) {
         const finishedRun = activeFriendRun;
         friendSubmitting = true;
+        friendPanel.outcome.textContent = 'Verifying your friend challenge result…';
         void friendService.finish(finishedRun.runId, {
             score: scoreManager.currentScore, rings: scoreManager.ringsCollected,
             distance: scoreManager.distance,
         }).then(result => {
             if (activeFriendRun === finishedRun) {
-                friendPanel.outcome.textContent = result.won
-                    ? 'Challenge beaten — verified by SkyRacer!'
-                    : 'Good flight! You did not beat this challenge score.';
+                friendPanel.setVerifiedResult(result);
             }
         }).catch(error => {
             if (activeFriendRun === finishedRun) friendPanel.outcome.textContent =
@@ -413,7 +413,7 @@ function resetForNewMode() {
 }
 
 function backToMainMenu() {
-    if (startTransitionPending || gameState !== 'terminated') return;
+    if (startTransitionPending || friendStartPending || gameState !== 'terminated') return;
     if (gameMode === 'daily' || gameMode === 'friend') {
         returnToClassic();
     } else {
@@ -449,16 +449,26 @@ async function launchDailyChallenge() {
 }
 
 async function launchFriendChallenge(challenge) {
-    if (startTransitionPending || (gameState !== 'start' && gameState !== 'terminated')) return false;
+    if (startTransitionPending || friendStartPending
+        || (gameState !== 'start' && gameState !== 'terminated')) return false;
     if (!challenge || challenge.expired) throw new Error('This challenge is no longer active.');
-    const registered = await friendService.start(challenge.id);
-    gameMode = 'friend';
-    scoreManager = new ScoreManager({ recordsEnabled: false });
-    activeDailyRun = null;
-    resetForNewMode();
-    activeFriendRun = registered;
-    friendSubmitting = false;
-    return startRunning();
+    friendStartPending = true;
+    try {
+        const startingState = gameState;
+        const startingMode = gameMode;
+        const registered = await friendService.start(challenge.id);
+        if (gameState !== startingState || gameMode !== startingMode || startTransitionPending) return false;
+        gameMode = 'friend';
+        scoreManager = new ScoreManager({ recordsEnabled: false });
+        activeDailyRun = null;
+        resetForNewMode();
+        activeFriendRun = registered;
+        friendSubmitting = false;
+        friendPanel.setVerifiedResult(null);
+        return startRunning();
+    } finally {
+        friendStartPending = false;
+    }
 }
 
 async function submitDailyScore(nickname) {
@@ -506,7 +516,8 @@ function beginOnlineRun() {
 
 async function startRunning() {
     // Ignore duplicate clicks and key presses during async run registration.
-    if (startTransitionPending || gameState === 'running') return false;
+    if (startTransitionPending || gameState === 'running'
+        || (friendStartPending && gameMode !== 'friend')) return false;
     startTransitionPending = true;
     const isNewRun = gameState === 'start' || gameState === 'terminated';
     try {

@@ -835,3 +835,11 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
 .hangar-aircraft__inspect:hover { background:var(--sr-accent-soft); }
 .hangar-aircraft__inspect:focus-visible { outline:2px solid var(--sr-accent-bright); outline-offset:2px; }
 @media(max-width:470px) { .hangar-equipped button { flex:1 1 125px; } .hangar-preview__silhouette { width:150px; } }
+
+
+/* M5-C: unobtrusive end-of-flight unlock and verified progress labels. */
+.hangar-unlock {display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:12px; margin:13px auto; padding:10px 14px; border:1px solid var(--sr-accent); border-radius:9px; background:var(--sr-accent-soft);}
+.hangar-unlock strong {color:var(--sr-accent-bright); font:750 13px/1.3 var(--sr-font-display);letter-spacing:.04em;}
+.hangar-unlock button {cursor:pointer; border:1px solid var(--sr-line);background:var(--sr-panel);border-radius:7px;padding:9px 12px;color:var(--sr-text);font:700 12px/1.3 var(--sr-font-body);}
+.hangar-aircraft__details [data-aircraft-progress] {color:var(--sr-accent-bright);font:600 11px/1.5 var(--sr-font-data);overflow-wrap:anywhere;}
+.hangar-achievements [data-achievement-progress] {color:var(--sr-accent-bright);font:650 12px/1.5 var(--sr-font-data);}

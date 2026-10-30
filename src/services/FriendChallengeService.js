@@ -5,8 +5,13 @@
 export class FriendChallengeService {
     constructor(leaderboard) { this.leaderboard = leaderboard; }
     get enabled() { return this.leaderboard.enabled; }
+    getKnownNickname() { return this.leaderboard.getNickname(); }
+    rememberNickname(name) { this.leaderboard.rememberNickname(name); }
     async resolve(id) {
         return this.leaderboard.requestFriendChallenge('GET', null, id);
+    }
+    async submitClassic(result) {
+        return this.leaderboard.requestFriendChallenge('POST', { action: 'submit-classic', ...result });
     }
     async create({ runId }) {
         if (!runId) throw new Error('Submit your completed Classic run to verify it before sharing.');

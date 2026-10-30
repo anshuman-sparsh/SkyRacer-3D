@@ -32,6 +32,30 @@ export default {
       body = JSON.parse(raw);
       if (!body || typeof body !== 'object' || Array.isArray(body)) return fail('Invalid request.');
     } catch { return fail('Invalid JSON.'); }
+    if (body.action === 'submit-classic') {
+      if (typeof body.runId !== 'string' || !UUID.test(body.runId)
+          || typeof body.nickname !== 'string' || !/^[A-Za-z0-9_]{3,16}$/.test(body.nickname)
+          || !Number.isSafeInteger(body.score) || body.score < 1 || body.score > 2147483647
+          || !Number.isSafeInteger(body.rings) || body.rings < 0 || body.rings > 100000
+          || typeof body.distance !== 'number' || !Number.isFinite(body.distance)
+          || body.distance < 0 || body.distance > 1e8) return fail('Invalid Classic result.');
+      const { data, error } = await db.rpc('submit_friend_classic_result', {
+        p_user_id: uid, p_run_id: body.runId, p_nickname: body.nickname,
+        p_score: body.score, p_rings: body.rings, p_distance: body.distance,
+      });
+      if (error) {
+        if (error.code === '23505') return fail('This nickname is already taken.', 409);
+        if (error.message?.includes('NICKNAME_LOCKED')) return fail('Use your registered pilot nickname.', 409);
+        if (error.message?.includes('FRIEND_RATE_LIMIT')) return fail('Too many friend results. Try again later.', 429);
+        if (error.message?.includes('FRIEND_SOURCE_UNVERIFIED')) return fail('This flight was not registered online.', 409);
+        if (error.message?.includes('FRIEND_RESULT_LOCKED')) return fail('This completed flight is already recorded with different values.', 409);
+        if (error.message?.includes('FRIEND_INVALID_RESULT')) return fail('This flight result could not be validated.', 400);
+        return fail('Unable to verify your Classic flight.', 503);
+      }
+      if (!data?.[0]?.run_id) return fail('Unable to save this result.', 503);
+      return ok({ accepted: true, runId: data[0].run_id, score: data[0].score,
+        nickname: data[0].nickname });
+    }
     if (body.action === 'create') {
       if (typeof body.runId !== 'string' || !UUID.test(body.runId)) return fail('A verified Classic run is required.');
       const { data, error } = await db.rpc('issue_friend_challenge', {
@@ -39,6 +63,8 @@ export default {
       });
       if (error) {
         if (error.message?.includes('FRIEND_RATE_LIMIT')) return fail('Too many challenges created. Try again later.', 429);
+        if (error.message?.includes('FRIEND_SCORE_NOT_HIGHER')) return fail('Your next challenge needs a higher score than your previous one.', 409);
+        if (error.message?.includes('FRIEND_NEEDS_NEW_RUN')) return fail('Finish a new Classic flight after your last challenge.', 409);
         if (error.message?.includes('FRIEND_SOURCE_UNVERIFIED')) return fail('This Classic run was not verified.', 409);
         if (error.message?.includes('FRIEND_NICKNAME_REQUIRED')) return fail('Register your pilot nickname first.', 409);
         if (error.message?.includes('FRIEND_CHALLENGE_EXPIRED')) return fail('That challenge has expired.', 410);

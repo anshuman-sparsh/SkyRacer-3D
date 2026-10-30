@@ -2,7 +2,7 @@ import { beatsChallenge, createChallengeLink, readChallengeLink, verifiedChallen
 
 /**
  * Friend-challenge dialog. Never trusts scores or authors from query parameters.
- * Server-backed create/resolve/submit hooks will be connected in M4-B/C.
+ * Ordinary Classic results submit separately from global leaderboard scores.
  */
 export class FriendChallengePanel {
     constructor({ service, onOpen, getResult, canCreate, onAccept }) {
@@ -24,6 +24,7 @@ export class FriendChallengePanel {
         this.acceptButton = document.querySelector('[data-friend-accept]');
         this.copyButton = document.querySelector('[data-friend-copy]');
         this.linkInput = document.querySelector('[data-friend-link]');
+        this.nicknameInput = document.querySelector('[data-friend-nickname]');
         this.outcome = document.querySelector('[data-friend-outcome]');
         this.pending = readChallengeLink(window.location.href);
         this.challenge = null;
@@ -63,12 +64,13 @@ export class FriendChallengePanel {
         if (this.dialog.open) return;
         this.opener = event?.currentTarget ?? this.menuButton;
         this.onOpen();
+        if (!this.nicknameInput.value) this.nicknameInput.value = this.service?.getKnownNickname?.() ?? '';
         this.dialog.showModal();
         this.closeButton.focus({ preventScroll: true });
         this.updateActions();
         if (!this.pending.present) {
             this.status.textContent = this.service?.enabled
-                ? 'Share a verified finished flight or enter a friend’s challenge link.'
+                ? 'Use a completed Classic flight to create a challenge. Every new target must beat your last.'
                 : 'Friend Challenges are being prepared. Server verification arrives in M4-B.';
             return;
         }
@@ -132,12 +134,23 @@ export class FriendChallengePanel {
 
     async create() {
         const result = this.getResult();
+        const nickname = this.nicknameInput.value.trim();
+        if (!/^[A-Za-z0-9_]{3,16}$/.test(nickname)) {
+            this.status.textContent = 'Enter your registered pilot nickname (3–16 letters, digits or underscores).';
+            this.nicknameInput.focus();
+            return;
+        }
         if (this.busy || !this.service?.enabled || !this.canCreate() || !result) return;
         this.busy = true;
         this.updateActions();
         this.status.textContent = 'Creating a verified challenge…';
         try {
-            const data = await this.service.create(result);
+            const runId = await result.runIdPromise;
+            if (!runId) throw new Error('This run could not be registered online.');
+            await this.service.submitClassic({ runId, nickname, score: result.score,
+                rings: result.rings, distance: result.distance });
+            const data = await this.service.create({ runId });
+            this.service.rememberNickname(nickname);
             const challenge = verifiedChallenge(data);
             this.sharedLink = createChallengeLink(challenge.id, window.location.href);
             this.linkInput.value = this.sharedLink;

@@ -62,7 +62,7 @@ export class TrackManager {
         this.#fillAhead(0);
     }
 
-    update(delta, hovercraft, { ringCaptureRadius = 0.7 } = {}) {
+    update(delta, hovercraft, ringCaptureRadius = 0.7) {
         let collectedRings = 0;
         let collectedEnergyRings = 0;
         let collectedSurgeRings = 0;

@@ -6,7 +6,8 @@ import { HangarPreview } from '../hangar/HangarPreview.js';
  * Both free starters are equipable; advanced aircraft remain locked until M5-C.
  */
 export class HangarPanel {
-    constructor({ getTheme, canOpen, selection, loadProgress = null }) {
+    constructor({ getTheme, canOpen, selection, loadProgress = null, onNewUnlock = () => {} }) {
+        this.onNewUnlock=onNewUnlock;
         this.loadProgress=loadProgress;
         this.progress=null;
         this.loading=false;
@@ -125,8 +126,14 @@ export class HangarPanel {
         try {
             const data=await this.loadProgress();
             if (!data || !Array.isArray(data.unlockedIds)) throw Error('Unexpected progress response');
+            const previous = this.progress?.unlockedIds ?? null;
             this.progress=data;
             this.selection.setUnlocked(data.unlockedIds);
+            if (previous) {
+                const unlocked = data.unlockedIds.filter(id =>
+                    !previous.includes(id) && !['cyan-striker','ember-striker'].includes(id));
+                if (unlocked.length) this.onNewUnlock(unlocked);
+            }
             this.status.textContent = 'Verified flights: '+data.verifiedRuns+' · Rings: '+data.totalRings
                 +' · Distance: '+Math.floor(data.totalDistance).toLocaleString();
             this.refresh();

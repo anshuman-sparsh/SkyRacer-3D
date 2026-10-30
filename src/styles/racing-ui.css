@@ -767,3 +767,54 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
 .friend-dialog button:disabled { cursor: not-allowed; opacity: .48; }
 .friend-dialog button:focus-visible, .friend-share__row input:focus-visible { outline: 2px solid var(--sr-accent-bright); outline-offset: 3px; }
 @media (max-width: 540px) { .friend-details { grid-template-columns: 1fr; gap: 5px; } .friend-details__label:not(:first-child) { margin-top: 9px; } .friend-share__row button { width: 100%; } }
+
+
+/* M5-A: full-screen independent Hangar, entered only before takeoff. */
+.hangar-entry { display:flex; align-items:center; justify-content:space-between; gap:13px; margin-top:17px; padding:12px 14px; border:1px solid var(--sr-line-soft); border-radius:var(--sr-radius-sm); background:var(--sr-accent-soft); text-align:left; }
+.hangar-entry__identity { display:grid; gap:3px; min-width:0; }
+.hangar-entry__eyebrow { font:700 10px/1.4 var(--sr-font-data); letter-spacing:.06em; color:var(--sr-muted); }
+.hangar-entry__identity strong { font:700 15px/1.25 var(--sr-font-display); color:var(--sr-text); }
+.hangar-entry__button { min-height:43px; padding:8px 12px; border:1px solid var(--sr-line); border-radius:8px; background:var(--sr-panel-raised); color:var(--sr-accent-bright); font:700 12px/1.3 var(--sr-font-body); cursor:pointer; white-space:nowrap; }
+.hangar-entry__button:hover { background:var(--sr-panel); }
+.hangar-entry__button:focus-visible,.hangar-shell button:focus-visible { outline:2px solid var(--sr-accent-bright); outline-offset:3px; }
+.hangar-shell { width:100vw; max-width:100vw; height:100dvh; max-height:100dvh; margin:0; padding:0; border:0; background:var(--sr-bg); color:var(--sr-text); overflow-y:auto; }
+.hangar-shell::backdrop { background:var(--sr-backdrop); }
+.hangar-shell__inner { width:min(1030px,100%); min-height:100%; margin:auto; padding:clamp(18px,3vw,38px); }
+.hangar-shell__header { display:flex; justify-content:space-between; gap:15px; align-items:center; }
+.hangar-shell__eyebrow { font:700 11px/1.5 var(--sr-font-data); letter-spacing:.1em; color:var(--sr-accent-bright); }
+.hangar-shell__header h2 { margin:5px 0 0; font:800 clamp(27px,5vw,46px)/1 var(--sr-font-display); }
+.hangar-shell__close { border:1px solid var(--sr-line); border-radius:8px; padding:10px 13px; background:transparent; color:var(--sr-text); cursor:pointer; font:700 12px/1.2 var(--sr-font-body); }
+.hangar-shell__intro,.hangar-shell__section-note,.hangar-shell__footer { color:var(--sr-muted); font:450 13px/1.6 var(--sr-font-body); }
+.hangar-shell__intro { max-width:730px; margin:15px 0; }
+.hangar-preview { position:relative; isolation:isolate; display:flex; align-items:center; justify-content:center; overflow:hidden; min-height:220px; border:1px solid var(--sr-line); border-radius:14px; background:radial-gradient(ellipse at 50% 55%,var(--sr-accent-glow),transparent 65%),var(--sr-panel); color:#ffa94d; }
+.hangar-preview[data-aircraft="cyan-striker"] { color:#5ef0ff; }
+.hangar-preview__grid { position:absolute; inset:0; opacity:.3; background-image:linear-gradient(var(--sr-line-soft) 1px, transparent 1px),linear-gradient(90deg,var(--sr-line-soft) 1px,transparent 1px); background-size:38px 38px; transform:perspective(260px) rotateX(35deg) scale(1.5); }
+.hangar-preview__silhouette { position:relative; width:clamp(150px,29vw,230px); height:auto; margin:10px 0 40px; filter:drop-shadow(0 0 19px currentColor); opacity:.85; transform:perspective(500px) rotateX(24deg); }
+.hangar-preview__identity { position:absolute; bottom:12px; left:15px; right:15px; display:grid; gap:3px; }
+.hangar-preview__identity span { font:700 10px/1.2 var(--sr-font-data); color:var(--sr-muted); }
+.hangar-preview__identity strong { font:750 19px/1.25 var(--sr-font-display); }
+.hangar-preview__identity small { font:500 11px/1.4 var(--sr-font-body); color:var(--sr-muted); }
+.hangar-shell__tabs { display:flex; gap:6px; margin-top:20px; border-bottom:1px solid var(--sr-line-soft); }
+.hangar-shell__tabs button { cursor:pointer; padding:12px 17px; background:transparent; color:var(--sr-muted); border:0; border-bottom:2px solid transparent; font:700 13px/1.3 var(--sr-font-body); }
+.hangar-shell__tabs button[aria-selected="true"] { border-bottom-color:var(--sr-accent); color:var(--sr-accent-bright); }
+.hangar-collection { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:11px; margin-top:14px; }
+.hangar-aircraft { display:flex; gap:11px; align-items:flex-start; min-width:0; padding:15px; border:1px solid var(--sr-line-soft); border-radius:10px; background:var(--sr-panel); }
+.hangar-aircraft.is-theme-default { border-color:var(--sr-accent); }
+.hangar-aircraft__marker { flex:none; width:22px; height:22px; border-radius:5px; background:linear-gradient(135deg,#5ef0ff,#103b63); }
+.hangar-aircraft__marker[data-color="ember"] { background:linear-gradient(135deg,#ffba68,#7c270a); }
+.hangar-aircraft__marker[data-color="silver"] { background:linear-gradient(135deg,#f1f6ff,#737d8c); }
+.hangar-aircraft__marker[data-color="violet"] { background:linear-gradient(135deg,#945bf5,#121323); }
+.hangar-aircraft__marker[data-color="nova"] { background:linear-gradient(135deg,#e96eff,#416aff); }
+.hangar-aircraft__marker[data-color="apex"] { background:linear-gradient(135deg,#ffdb79,#c11d28); }
+.hangar-aircraft__details { min-width:0; }
+.hangar-aircraft__details h3 { margin:0 0 4px; font:700 15px/1.3 var(--sr-font-display); }
+.hangar-aircraft__details p { margin:3px 0; color:var(--sr-muted); font:500 12px/1.45 var(--sr-font-body); }
+.hangar-aircraft__details .hangar-aircraft__tier { color:var(--sr-accent-bright); }
+.hangar-aircraft__default { display:block; margin-top:8px; color:var(--sr-accent-bright); font:700 11px/1.3 var(--sr-font-body); }
+.hangar-achievements { list-style:none; padding:0; display:grid; gap:10px; }
+.hangar-achievements li { display:grid; gap:5px; padding:14px; background:var(--sr-panel); border:1px solid var(--sr-line-soft); border-radius:9px; }
+.hangar-achievements li strong { font:700 15px/1.3 var(--sr-font-display); }
+.hangar-achievements li span { color:var(--sr-muted); font:450 12px/1.5 var(--sr-font-body); }
+.hangar-shell__footer { padding:17px 0 10px; }
+@media(max-width:740px) { .hangar-collection { grid-template-columns:repeat(2,minmax(0,1fr)); } .hangar-shell__inner { padding:18px; } }
+@media(max-width:470px) { .hangar-entry { flex-wrap:wrap; } .hangar-entry__button { width:100%; } .hangar-collection { grid-template-columns:1fr; } .hangar-shell__close { font-size:10px; padding:9px; } .hangar-preview { min-height:190px; } }

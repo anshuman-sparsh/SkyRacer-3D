@@ -410,11 +410,15 @@
       <span class="friend-details__label">EXPIRES</span><span data-friend-expiry>—</span>
     </div>
     <p class="friend-outcome" data-friend-outcome aria-live="polite"></p>
+    <div class="friend-share" data-friend-identity>
+      <label for="friend-pilot-nickname">Your pilot nickname</label>
+      <input type="text" id="friend-pilot-nickname" data-friend-nickname minlength="3" maxlength="16" autocomplete="nickname" pattern="[A-Za-z0-9_]{3,16}" placeholder="SkyPilot" aria-describedby="friend-dialog-title" />
+    </div>
     <div class="friend-actions"><button type="button" class="daily-action" data-friend-accept disabled>ACCEPT CHALLENGE</button><button type="button" class="daily-action" data-friend-create disabled>CHALLENGE WITH THIS SCORE</button></div>
     <div class="friend-share"><label for="friend-share-link">Shareable challenge link</label>
       <div class="friend-share__row"><input type="url" id="friend-share-link" data-friend-link readonly placeholder="Verified challenge link will appear here" /><button type="button" class="daily-action" data-friend-copy disabled>COPY LINK</button></div>
     </div>
-    <p class="help-dialog__note">Only server-verified flights can create or beat a challenge. A tie does not win. Links contain only an opaque server-issued ID.</p>
+    <p class="help-dialog__note">Any verified completed Classic flight can create your first challenge. Each new challenge must beat your last challenge score. A tie does not win. Links contain only an opaque server-issued ID.</p>
   </dialog>
   <script type="module" src="/src/main.js"></script>
 </body>

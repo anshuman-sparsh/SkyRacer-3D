@@ -197,6 +197,21 @@ export class LeaderboardService {
         return asJson(response);
     }
 
+    async getHangarProgress(retry = true) {
+        if (!this.enabled) throw new Error('Online progress is unavailable.');
+        const session = await this.#ensureSession();
+        const response = await this.fetchImpl(this.url + '/functions/v1/hangar-progress', {
+            method: 'GET',
+            headers: { apikey: this.key, Authorization: 'Bearer ' + session.access_token },
+            cache: 'no-store',
+        });
+        if (response.status === 401 && retry) {
+            await this.#ensureSession(true);
+            return this.getHangarProgress(false);
+        }
+        return asJson(response);
+    }
+
     rememberNickname(nickname) {
         if (/^[A-Za-z0-9_]{3,16}$/.test(nickname)) this.#save(NAME_KEY, nickname);
     }

@@ -5,6 +5,8 @@
 export class FriendChallengeService {
     constructor(leaderboard) { this.leaderboard = leaderboard; }
     get enabled() { return this.leaderboard.enabled; }
+    getKnownNickname() { return this.leaderboard.getNickname(); }
+    rememberNickname(name) { this.leaderboard.rememberNickname(name); }
     async resolve(id) {
         return this.leaderboard.requestFriendChallenge('GET', null, id);
     }

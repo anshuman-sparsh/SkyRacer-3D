@@ -2,9 +2,8 @@ import { HANGAR_AIRCRAFT, HANGAR_MILESTONES } from '../hangar/HangarCatalog.js';
 import { HangarPreview } from '../hangar/HangarPreview.js';
 
 /**
- * M5-A: independent pre-flight Hangar foundation.
- * This is deliberately a concept/collection preview; equipping actual
- * procedural models belongs to M5-B and verified progress to M5-C.
+ * M5-B: independent pre-flight Hangar with 3D aircraft preview.
+ * Both free starters are equipable; advanced aircraft remain locked until M5-C.
  */
 export class HangarPanel {
     constructor({ getTheme, canOpen, selection }) {

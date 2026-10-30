@@ -63,7 +63,7 @@ export class RingGuidance extends THREE.Group {
         this.visible = false;
     }
 
-    update(rings, craft) {
+    update(rings, craft, craftCollectionRadius = CRAFT_COLLECTION_RADIUS) {
         const speed = Math.max(0, -craft.velocity.z);
         if (speed < MIN_FORWARD_SPEED) {
             this.hide();
@@ -76,7 +76,7 @@ export class RingGuidance extends THREE.Group {
             const distance = craft.position.z - ring.position.z;
             const lookahead = Math.min(
                 MAX_GUIDANCE_DISTANCE,
-                speed * MAX_LOOKAHEAD_SECONDS - ring.collectionRadius - 0.7,
+                speed * MAX_LOOKAHEAD_SECONDS - ring.collectionRadius - craftCollectionRadius,
             );
             // Once visible, give the active target a small release buffer so
             // frame-to-frame speed changes do not blink the marker or line.
@@ -86,7 +86,7 @@ export class RingGuidance extends THREE.Group {
             // Only guide toward rings already in the craft's current X/Y
             // flight lane. Use the same forgiving radius as ring collection,
             // with a small exit buffer to avoid boundary flicker.
-            const laneRadius = ring.collectionRadius + CRAFT_COLLECTION_RADIUS
+            const laneRadius = ring.collectionRadius + craftCollectionRadius
                 + (retaining ? LANE_EXIT_BUFFER : 0);
             const laneX = ring.position.x - craft.position.x;
             const laneY = ring.position.y - craft.position.y;
@@ -121,7 +121,7 @@ export class RingGuidance extends THREE.Group {
         // Preserve the original swept-sphere ring crossing prediction for
         // green (aligned) / amber (misaligned) status; never use it to move
         // the diamond toward a ring.
-        const forecastTime = (nearestDistance + nearest.collectionRadius + 0.7) / speed;
+        const forecastTime = (nearestDistance + nearest.collectionRadius + craftCollectionRadius) / speed;
         this.futurePosition.set(
             THREE.MathUtils.clamp(
                 craft.position.x + craft.velocity.x * forecastTime,
@@ -133,7 +133,7 @@ export class RingGuidance extends THREE.Group {
             ),
             craft.position.z - speed * forecastTime,
         );
-        const aligned = nearest.intersectsPath(craft.position, this.futurePosition);
+        const aligned = nearest.intersectsPath(craft.position, this.futurePosition, craftCollectionRadius);
         this.markerMaterial.color.setHex(aligned ? 0xc8ffad : 0xffd07b);
 
         // The ring's ground reference stays on the ring even while the

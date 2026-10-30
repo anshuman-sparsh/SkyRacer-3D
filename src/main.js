@@ -4,7 +4,6 @@ import { CameraDynamics, createCamera } from './core/Camera.js';
 import { createRenderer, resizeRenderer } from './core/Renderer.js';
 import { createScene } from './core/Scene.js';
 import { disposeEnergyRingResources } from './entities/EnergyRing.js';
-import { disposeBlackRingResources } from './entities/BlackRing.js';
 import { disposeGroundAnchorResources } from './entities/GroundAnchor.js';
 import { HoverCraft } from './entities/HoverCraft.js';
 import { RingGuidance } from './entities/RingGuidance.js';
@@ -1105,7 +1104,6 @@ function disposeApp() {
     trackManager.destroy();
     disposeTrackSegmentResources();
     disposeEnergyRingResources();
-    disposeBlackRingResources();
     disposeObstacleResources();
     scene.remove(starField);
     starField.dispose();

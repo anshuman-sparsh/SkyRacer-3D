@@ -64,6 +64,7 @@ export class FriendChallengePanel {
         if (this.dialog.open) return;
         this.opener = event?.currentTarget ?? this.menuButton;
         this.onOpen();
+        if (!this.nicknameInput.value) this.nicknameInput.value = this.service?.getKnownNickname?.() ?? '';
         this.dialog.showModal();
         this.closeButton.focus({ preventScroll: true });
         this.updateActions();

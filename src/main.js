@@ -20,6 +20,7 @@ import { RingCollectionDeadline } from './managers/RingCollectionDeadline.js';
 import { LeaderboardService } from './services/LeaderboardService.js';
 import { DailyChallengeService } from './services/DailyChallengeService.js';
 import { DailyChallengePanel } from './ui/DailyChallengePanel.js';
+import { FriendChallengePanel } from './ui/FriendChallengePanel.js';
 import { ThemeController } from './ui/ThemeController.js';
 import { QuickMenu } from './ui/QuickMenu.js';
 import { shouldToggleFlightPause } from './ui/FlightKeyPolicy.js';
@@ -65,6 +66,8 @@ let scoreManager = classicScoreManager;
 const ringCollectionDeadline = new RingCollectionDeadline();
 const leaderboard = new LeaderboardService();
 const dailyService = new DailyChallengeService(leaderboard);
+// M4-A frontend only: server-issued challenges are unavailable until M4-B.
+const friendService = { enabled: false };
 const analytics = new GameplayAnalyticsService({
     submitEvent: leaderboard.enabled ? (event) => leaderboard.sendGameplayEvent(event) : null,
 });
@@ -179,6 +182,17 @@ const dailyPanel = new DailyChallengePanel({
         && !dailySubmitting,
 });
 const themeController = new ThemeController();
+const friendPanel = new FriendChallengePanel({
+    service: friendService,
+    onOpen: () => { if (gameState === 'running') setGameState('paused'); },
+    getResult: () => gameMode === 'classic' && gameState === 'terminated'
+        ? { score: scoreManager.currentScore, rings: scoreManager.ringsCollected,
+            distance: scoreManager.distance, runId: null }
+        : null,
+    canCreate: () => gameMode === 'classic' && gameState === 'terminated'
+        && scoreManager.currentScore > 0 && !startTransitionPending,
+    onAccept: async () => false, // M4-B/C will register and launch verified runs.
+});
 const quickMenu = new QuickMenu({
     onOpen: () => {
         if (gameState === 'running') setGameState('paused');
@@ -188,6 +202,7 @@ const quickMenu = new QuickMenu({
     onAudioChange: setAudioEnabled,
     onLeaderboard: () => openLeaderboard({ currentTarget: quickMenu.trigger }),
     onDaily: () => dailyPanel.open({ currentTarget: quickMenu.trigger }),
+    onFriend: () => friendPanel.open({ currentTarget: quickMenu.trigger }),
     canLeaderboard: () => leaderboard.enabled,
     canDaily: () => dailyService.enabled,
 });
@@ -259,6 +274,8 @@ function setGameState(nextState, terminationReason = 'collision') {
     stateStats.hidden = !isTerminated;
     restartButton.hidden = !isTerminated;
     exitMenuButton.hidden = !isTerminated;
+    friendPanel.updateActions();
+    friendPanel.updateOutcome();
     scoreSubmitButton.hidden = gameMode !== 'classic'
         || !isTerminated || !leaderboard.enabled || onlineSubmitted;
     stateTitle.classList.toggle('is-alert', isTerminated);
@@ -345,6 +362,7 @@ function updateModeDisplays() {
         if (gameState === 'terminated') stateTitle.textContent = 'DAILY RUN ENDED';
     }
     dailyPanel.updateActions();
+    friendPanel.updateActions();
 }
 
 function resetForNewMode() {
@@ -527,7 +545,7 @@ function restartRun() {
 function handleGameKey(event) {
     // A new flight or retry starts exclusively from START FLIGHT or FLY AGAIN,
     // not arbitrary keys, arrow movement or taps on the overlay.
-    if (helpDialog.open || leaderboardDialog.open || dailyPanel.dialog.open || quickMenu.opened) return;
+    if (helpDialog.open || leaderboardDialog.open || dailyPanel.dialog.open || friendPanel.dialog.open || quickMenu.opened) return;
     if (shouldToggleFlightPause(gameState, event.code, event.repeat)) togglePause();
 }
 
@@ -932,6 +950,7 @@ function disposeApp() {
     classicModeButton.removeEventListener('click', returnToClassic);
     dailySubmitButton.removeEventListener('click', openDailyResults);
     dailyPanel.dispose();
+    friendPanel.dispose();
     quickMenu.dispose();
     themeController.dispose();
     inputManager.destroy();

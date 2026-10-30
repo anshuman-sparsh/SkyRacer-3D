@@ -1,5 +1,4 @@
-// M5-A: display-only aircraft catalog and theme defaults.
-// Do not treat these entries as unlocked/equipped models before M5-B/C.
+// Earnable aircraft catalog and theme-linked starter defaults.
 export const HANGAR_AIRCRAFT = Object.freeze([
     Object.freeze({
         id: 'cyan-striker', name: 'Cyan Striker', tier: 'Starter',
@@ -24,12 +23,12 @@ export const HANGAR_AIRCRAFT = Object.freeze([
     Object.freeze({
         id: 'nova-vortex', name: 'Nova Vortex', tier: 'Elite',
         color: 'nova', requirement: 'Fly 25,000 units and collect 1,500 rings',
-        description: 'Proposed ring-assist ability for unranked Enhanced Flight.',
+        description: 'Ring Assist: slightly wider collectible-ring capture in Classic, Daily and Friend flights.',
     }),
     Object.freeze({
         id: 'apex-overdrive', name: 'Apex Overdrive', tier: 'Legendary',
         color: 'apex', requirement: 'Win 10 Friend Challenges and complete 10 Daily Challenges',
-        description: 'Proposed extended energy boost for unranked Enhanced Flight.',
+        description: 'Extended Boost: longer automatic energy-ring boosts in Classic, Daily and Friend flights.',
     }),
 ]);
 

@@ -28,12 +28,13 @@ test('friend service routes create, resolve, start and finish through authentica
   const calls=[];
   const service=new FriendChallengeService({enabled:true,requestFriendChallenge:async(...args)=>{calls.push(args);if(args[1]?.action==='start')return {runId:'9d999e88-506e-43b6-87a6-72585f89bdb1'};return {accepted:true};}});
   await service.resolve(ID);
+  await service.submitClassic({runId:'test-run',nickname:'Pilot_1',score:100,rings:0,distance:10});
   await service.create({runId:'test-run'});
   await service.start(ID);
   await service.finish('test-run',{score:100,rings:0,distance:10});
-  assert.deepEqual(calls.map(x=>x[0]),['GET','POST','POST','POST']);
+  assert.deepEqual(calls.map(x=>x[0]),['GET','POST','POST','POST','POST']);
   assert.equal(calls[0][2],ID);
-  assert.deepEqual(calls.map(x=>x[1]?.action),[undefined,'create','start','finish']);
+  assert.deepEqual(calls.map(x=>x[1]?.action),[undefined,'submit-classic','create','start','finish']);
 });
 test('friend dialog shows server target and never automatically accepts challenge',async()=>{
   const f=createPanel();let accepted=0;f.panel.onAccept=async()=>{accepted++;return true};

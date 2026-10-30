@@ -29,27 +29,38 @@ test('all standard aircraft have normal physics and both elite perks require ver
 });
 
 test('Nova captures a slight edge miss without altering hazard hitboxes or score math', () => {
-    const scene = new THREE.Scene();
-    const craft = new HoverCraft();
-    const track = new TrackManager(scene, {
-        ringSpawnChance: 0, obstacleSpawnChance: 0, blackRingSpawnChance: 0,
-        random: () => 0.5,
-    });
-    const parts = craft.collisionParts.map(part => part.box);
-    const ring = new EnergyRing();
-    ring.position.set(2.25, 3, 0);
-    scene.add(ring);
-    track.energyRings.push(ring);
-    assert.equal(track.update(0, craft, BASE_RING_CAPTURE_RADIUS).collectedRings, 0);
-    assert.equal(track.energyRings.length, 1);
-    const result = track.update(0, craft, NOVA_RING_CAPTURE_RADIUS);
-    assert.equal(result.collectedRings, 1);
-    assert.equal(result.collectedEnergyRings, 1);
-    assert.equal(result.collided, false);
-    assert.equal(track.energyRings.length, 0);
-    assert.equal(craft.collisionParts.length, parts.length);
-    assert.deepEqual(craft.collisionParts.map(part => part.box), parts);
-    track.destroy();
+    const previousDocument = globalThis.document;
+    const context = { fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} };
+    globalThis.document = { createElement: () => ({
+        width: 256, height: 256, getContext: () => context,
+    }) };
+    let track;
+    try {
+        const scene = new THREE.Scene();
+        const craft = new HoverCraft();
+        track = new TrackManager(scene, {
+            ringSpawnChance: 0, obstacleSpawnChance: 0, blackRingSpawnChance: 0,
+            random: () => 0.5,
+        });
+        const parts = craft.collisionParts.map(part => part.box);
+        const ring = new EnergyRing();
+        ring.position.set(2.25, 3, 0);
+        scene.add(ring);
+        track.energyRings.push(ring);
+        assert.equal(track.update(0, craft, BASE_RING_CAPTURE_RADIUS).collectedRings, 0);
+        assert.equal(track.energyRings.length, 1);
+        const result = track.update(0, craft, NOVA_RING_CAPTURE_RADIUS);
+        assert.equal(result.collectedRings, 1);
+        assert.equal(result.collectedEnergyRings, 1);
+        assert.equal(result.collided, false);
+        assert.equal(track.energyRings.length, 0);
+        assert.equal(craft.collisionParts.length, parts.length);
+        assert.deepEqual(craft.collisionParts.map(part => part.box), parts);
+    } finally {
+        track?.destroy();
+        if (previousDocument === undefined) delete globalThis.document;
+        else globalThis.document = previousDocument;
+    }
 });
 
 test('Nova ring guidance agrees with its expanded collectible lane', t => {

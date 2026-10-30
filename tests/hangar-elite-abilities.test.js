@@ -92,7 +92,7 @@ test('Apex increases boost duration but not its velocity multiplier or maximum c
 
 test('one equipment snapshot applies to Classic, Daily, and Friend; no enhanced mode or endpoint', () => {
     assert.match(mainSource, /activeFlightAbility = eliteAbilityFor\(activeFlightAircraftId, aircraftSelection\.ownedIds\)/);
-    assert.match(mainSource, /trackManager\.update\(delta, hovercraft, \{\s*ringCaptureRadius: activeFlightAbility\.ringCaptureRadius/);
+    assert.match(mainSource, /trackManager\.update\(delta, hovercraft, activeFlightAbility\.ringCaptureRadius\)/);
     assert.match(mainSource, /hovercraft\.activateEnergyBoost\(activeFlightAbility\.energyBoostDuration\)/);
     assert.match(mainSource, /ringGuidance\.update\(trackManager\.energyRings, hovercraft,\s*activeFlightAbility\.ringCaptureRadius\)/);
     assert.match(mainSource, /gameMode = 'daily'/);

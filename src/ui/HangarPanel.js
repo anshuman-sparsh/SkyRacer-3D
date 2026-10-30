@@ -27,6 +27,7 @@ export class HangarPanel {
         this.collection = document.querySelector('[data-hangar-collection]');
         this.achievements = document.querySelector('[data-hangar-achievements]');
         this.defaultName = document.querySelector('[data-hangar-default-name]');
+        this.abilityStatus = document.querySelector('[data-hangar-ability]');
         this.preview = document.querySelector('[data-hangar-preview]');
         this.canvas = document.querySelector('[data-hangar-canvas]');
         this.viewer = new HangarPreview(this.canvas);
@@ -83,6 +84,11 @@ export class HangarPanel {
         const chosen = HANGAR_AIRCRAFT.find(a=>a.id===this.previewId) || equippedAircraft;
         this.entryAircraft.textContent = equippedAircraft.name;
         this.defaultName.textContent = chosen.name;
+        const elite = chosen.id === 'nova-vortex' || chosen.id === 'apex-overdrive';
+        const ownedChoice = this.selection.ownedIds.includes(chosen.id);
+        this.abilityStatus.textContent = !elite
+            ? 'Standard flight handling · No special ability'
+            : (ownedChoice ? '' : 'LOCKED · ') + chosen.description;
         this.preview.dataset.aircraft = chosen.id;
         this.viewer.setAircraft(chosen.id);
         const owned = this.selection.ownedIds.includes(chosen.id);

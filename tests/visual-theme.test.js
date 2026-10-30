@@ -25,14 +25,14 @@ class FakeEl {
     contains(target) { return target === this; }
 }
 
-test('ember cockpit theme is the default; neon is an explicit supported alternative', () => {
-    assert.equal(DEFAULT_THEME, 'ember');
+test('neon cockpit theme is default while ember remains a supported saved choice', () => {
+    assert.equal(DEFAULT_THEME, 'neon');
     assert.equal(normalizeTheme('ember'), 'ember');
     assert.equal(normalizeTheme('neon'), 'neon');
-    assert.equal(normalizeTheme('injected-value'), 'ember');
+    assert.equal(normalizeTheme('injected-value'), 'neon');
     assert.equal(getStoredTheme({ getItem: () => 'neon' }), 'neon');
-    assert.equal(getStoredTheme({ getItem: () => 'invalid' }), 'ember');
-    assert.equal(getStoredTheme({ getItem: () => { throw Error('blocked'); } }), 'ember');
+    assert.equal(getStoredTheme({ getItem: () => 'invalid' }), 'neon');
+    assert.equal(getStoredTheme({ getItem: () => { throw Error('blocked'); } }), 'neon');
 });
 
 test('theme toggle persists a reversible choice without touching game state', () => {
@@ -52,17 +52,17 @@ test('theme toggle persists a reversible choice without touching game state', ()
     };
     try {
         const theme = new ThemeController({ root, storage });
-        assert.equal(root.dataset.theme, 'ember');
-        assert.equal(meta.content, '#080808');
-        assert.match(button.textContent, /Neon \/ Cyan/);
-        button.click();
         assert.equal(root.dataset.theme, 'neon');
         assert.equal(meta.content, '#0b0620');
-        assert.equal(value.get(THEME_STORAGE_KEY), 'neon');
         assert.match(button.textContent, /Orange \/ Black/);
         button.click();
         assert.equal(root.dataset.theme, 'ember');
+        assert.equal(meta.content, '#080808');
         assert.equal(value.get(THEME_STORAGE_KEY), 'ember');
+        assert.match(button.textContent, /Neon \/ Cyan/);
+        button.click();
+        assert.equal(root.dataset.theme, 'neon');
+        assert.equal(value.get(THEME_STORAGE_KEY), 'neon');
         theme.dispose();
         assert.equal(button.listeners.has('click'), false);
     } finally {
@@ -110,4 +110,16 @@ test('the real HTML and CSS define all three requested font roles and both theme
     assert.match(css, /:root\[data-theme="neon"\]/);
     assert.doesNotMatch(css, /Rajdhani/);
     assert.match(css, /prefers-reduced-motion/);
+});
+
+
+test('orange pre-flight border remains whole while cyan styling is untouched', () => {
+ const css = readFileSync(new URL('../src/styles/racing-ui.css', import.meta.url), 'utf8');
+ const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+ assert.match(css, /:root\[data-theme="ember"\] \.state-overlay__content\s*\{\s*clip-path:\s*none;/);
+ assert.match(css, /:root\[data-theme="ember"\] \.glass-panel\s*\{\s*clip-path:/);
+ assert.doesNotMatch(css, /:root\[data-theme="neon"\] \.state-overlay__content/);
+ assert.match(html, /<html lang="en" data-theme="neon">/);
+ assert.match(html, /<meta name="theme-color" content="#0b0620"\s*\/>/);
+ assert.match(html, /data-theme-toggle>APPEARANCE · Orange \/ Black/);
 });

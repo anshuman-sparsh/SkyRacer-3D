@@ -11,6 +11,7 @@ export class HangarPanel {
         this.loadProgress=loadProgress;
         this.progress=null;
         this.loading=false;
+        this.refreshAgain=false;
         this.status=document.querySelector('[data-hangar-progress-status]');
         this.selection = selection;
         this.getTheme = getTheme;
@@ -126,7 +127,8 @@ export class HangarPanel {
     }
 
     async refreshProgress() {
-        if (!this.loadProgress || this.loading) return;
+        if (!this.loadProgress) return;
+        if (this.loading) { this.refreshAgain=true; return; }
         this.loading=true;
         this.status.textContent='Checking verified pilot progress…';
         try {
@@ -146,7 +148,13 @@ export class HangarPanel {
             this.renderProgress();
         } catch(error) {
             this.status.textContent='Progress unavailable: '+error.message+'. Unverified rewards stay locked.';
-        } finally { this.loading=false; }
+        } finally {
+            this.loading=false;
+            if (this.refreshAgain) {
+                this.refreshAgain=false;
+                void this.refreshProgress();
+            }
+        }
     }
 
     renderProgress() {

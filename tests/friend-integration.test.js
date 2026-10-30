@@ -15,7 +15,7 @@ class Element {
 }
 function createPanel(overrides={}) {
   const oldDocument=globalThis.document, oldWindow=globalThis.window;
-  const keys=['friend-dialog','quick-friend','friend-result','friend-close','friend-status','friend-target','friend-creator','friend-expiry','friend-details','friend-create','friend-accept','friend-copy','friend-link','friend-outcome'];
+  const keys=['friend-dialog','quick-friend','friend-result','friend-close','friend-status','friend-target','friend-creator','friend-expiry','friend-details','friend-nickname','friend-create','friend-accept','friend-copy','friend-link','friend-outcome'];
   const elements=new Map(keys.map(key=>[key,new Element()]));
   globalThis.document={querySelector(selector){return elements.get(selector.match(/data-([\w-]+)/)?.[1])}};
   globalThis.window={location:{href:'https://www.skyracer.online/?challenge='+ID}};

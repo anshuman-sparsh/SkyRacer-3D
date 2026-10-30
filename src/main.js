@@ -24,6 +24,7 @@ import { FriendChallengePanel } from './ui/FriendChallengePanel.js';
 import { FriendChallengeService } from './services/FriendChallengeService.js';
 import { ThemeController } from './ui/ThemeController.js';
 import { HangarPanel } from './ui/HangarPanel.js';
+import { AircraftSelection } from './hangar/AircraftSelection.js';
 import { QuickMenu } from './ui/QuickMenu.js';
 import { shouldToggleFlightPause } from './ui/FlightKeyPolicy.js';
 import { createDailyRandom } from './utils/DailyChallenge.js';
@@ -188,11 +189,20 @@ const dailyPanel = new DailyChallengePanel({
         && !dailySubmitting,
 });
 const themeController = new ThemeController();
+const aircraftSelection = new AircraftSelection({
+    storage: (() => { try { return window.localStorage; } catch { return null; } })(),
+    theme: themeController.theme,
+    onChange: id => hovercraft.setAppearance(id),
+});
 const hangarPanel = new HangarPanel({
+    selection: aircraftSelection,
     getTheme: () => themeController.theme,
     canOpen: () => gameState === 'start' && !startTransitionPending && !friendStartPending,
 });
-const handleHangarThemeChange = () => hangarPanel.refresh();
+const handleHangarThemeChange = () => {
+    aircraftSelection.setTheme(themeController.theme);
+    hangarPanel.refresh();
+};
 themeController.button?.addEventListener('click', handleHangarThemeChange);
 const friendPanel = new FriendChallengePanel({
     service: friendService,

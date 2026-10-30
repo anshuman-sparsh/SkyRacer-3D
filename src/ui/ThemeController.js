@@ -1,9 +1,9 @@
 // Theme selection affects CSS only, never game state or scoring.
 export const THEME_STORAGE_KEY = 'skyracer_theme_v2';
-export const DEFAULT_THEME = 'ember';
+export const DEFAULT_THEME = 'neon';
 
 export function normalizeTheme(theme) {
-    return theme === 'neon' ? 'neon' : DEFAULT_THEME;
+    return theme === 'ember' || theme === 'neon' ? theme : DEFAULT_THEME;
 }
 
 export function getStoredTheme(storage) {

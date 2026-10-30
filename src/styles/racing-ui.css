@@ -105,6 +105,11 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
 :root[data-theme="ember"] .glass-panel {
   clip-path: polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%);
 }
+/* The orange HUD can keep its cut-corner styling, but the pre-flight
+   overlay must retain its complete rounded border on every edge. */
+:root[data-theme="ember"] .state-overlay__content {
+  clip-path: none;
+}
 .hud__label {
   color: var(--sr-muted);
   font: 650 11px/1.3 var(--sr-font-body);

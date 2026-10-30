@@ -61,9 +61,9 @@ export class HangarPreview {
         this.renderer.setSize(width,height,false);
         this.camera.aspect=width/height;this.camera.updateProjectionMatrix();
     }
-    close(){cancelAnimationFrame(this.frame);this.frame=0;this.lastFrame=0;}
+    close(){this.disposeRenderer();}
     disposeRenderer(){
-        this.close();
+        cancelAnimationFrame(this.frame);this.frame=0;this.lastFrame=0;
         if(this.craft){this.scene?.remove(this.craft);disposeObject3D(this.craft);this.craft=null;}
         if(this.renderer){this.renderer.dispose();this.renderer.forceContextLoss();this.renderer.domElement.remove();this.renderer=null;}
     }

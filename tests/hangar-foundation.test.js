@@ -38,6 +38,6 @@ test('Hangar is independent of quick menu, pre-flight gated, and never claims ac
     assert.match(main, /hangarPanel\.dialog\.open/);
     assert.match(main, /hangarPanel\.dispose\(\)/);
     assert.match(panel, /this\.dialog\.showModal\(\)/);
-    assert.match(html, /3D models and equipped skins arrive in M5-B/);
+    assert.match(html, /Drag to rotate the 3D preview/);
     assert.match(css,/\.hangar-shell/);
 });

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import { BlackRing, disposeBlackRingResources } from '../src/entities/BlackRing.js';
+import { BlackRing } from '../src/entities/BlackRing.js';
 import { EnergyRing } from '../src/entities/EnergyRing.js';
 import { HoverCraft } from '../src/entities/HoverCraft.js';
 import { TrackManager } from '../src/managers/TrackManager.js';
@@ -27,7 +27,6 @@ function withTrack(run, options = {}) {
         run({ track, scene });
     } finally {
         track?.destroy();
-        disposeBlackRingResources();
         if (originalDocument === undefined) delete globalThis.document;
         else globalThis.document = originalDocument;
     }
@@ -44,13 +43,17 @@ function coordinates(track) {
     };
 }
 
-test('black hazard rings have distinct markings and a swept crossing volume', () => {
+test('black hazard rings have no central X, black circumference and a swept crossing volume', () => {
     const black = new BlackRing();
     try {
         assert.equal(black.isHazard, true);
         assert.equal(black.isSurge, false);
         assert.equal(black.name, 'BlackHazardRing');
-        assert.equal(black.ringVisual.children.length >= 4, true);
+        assert.equal(black.ringVisual.children.length, 2, 'only black torus and neutral halo; no center X');
+        assert.equal(black.material.color.getHex(), 0x050505);
+        assert.equal(black.material.emissive.getHex(), 0x090909);
+        assert.equal(black.haloMaterial.color.getHex(), 0x484848);
+        assert.equal(black.groundAnchor.outerMaterial.color.getHex(), 0x505050);
         black.position.set(0, 3, -10);
         assert.equal(black.intersectsPath(
             new THREE.Vector3(0, 3, 6),
@@ -64,7 +67,6 @@ test('black hazard rings have distinct markings and a swept crossing volume', ()
         black.update(1 / 60);
         assert.ok(black.haloMaterial.opacity > 0.2);
     } finally {
-        disposeBlackRingResources();
     }
 });
 

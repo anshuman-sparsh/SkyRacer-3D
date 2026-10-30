@@ -338,6 +338,24 @@ function setGameState(nextState, terminationReason = 'collision') {
     }
 
     updateModeDisplays();
+    if (isTerminated && !wasTerminated && gameMode === 'classic' && onlineRunPromise
+        && scoreManager.currentScore > 0 && friendService.enabled) {
+        const nickname = friendService.getKnownNickname();
+        if (nickname) {
+            const registration = onlineRunPromise;
+            const finished = {
+                score: scoreManager.currentScore, rings: scoreManager.ringsCollected,
+                distance: scoreManager.distance, nickname,
+            };
+            void Promise.resolve(registration).then(runId => runId
+                ? friendService.submitClassic({ ...finished, runId })
+                : null).then(result => {
+                    if (result?.accepted) void hangarPanel.refreshProgress();
+                }).catch(error => {
+                    console.warn('[SkyRacer] Optional Hangar progression unavailable:', error);
+                });
+        }
+    }
     if (isTerminated && gameMode === 'friend' && activeFriendRun && !friendSubmitting) {
         const finishedRun = activeFriendRun;
         friendSubmitting = true;

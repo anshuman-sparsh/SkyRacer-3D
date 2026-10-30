@@ -25,6 +25,7 @@ import { FriendChallengeService } from './services/FriendChallengeService.js';
 import { ThemeController } from './ui/ThemeController.js';
 import { HangarPanel } from './ui/HangarPanel.js';
 import { AircraftSelection } from './hangar/AircraftSelection.js';
+import { eliteAbilityFor } from './hangar/EliteAbilities.js';
 import { HANGAR_AIRCRAFT } from './hangar/HangarCatalog.js';
 import { QuickMenu } from './ui/QuickMenu.js';
 import { shouldToggleFlightPause } from './ui/FlightKeyPolicy.js';
@@ -147,6 +148,9 @@ const inputManager = new InputManager(window, {
 let animationFrameId = 0;
 let gameState = 'start';
 let gameMode = 'classic';
+// One server-authorized equipment snapshot per flight; resumes never swap abilities.
+let activeFlightAircraftId = 'ember-striker';
+let activeFlightAbility = eliteAbilityFor(activeFlightAircraftId);
 let activeDailyRun = null;
 let activeFriendRun = null;
 let lastClassicRunId = null;
@@ -208,7 +212,11 @@ function openNewHangarUnlock() {
 const aircraftSelection = new AircraftSelection({
     storage: (() => { try { return window.localStorage; } catch { return null; } })(),
     theme: themeController.theme,
-    onChange: id => hovercraft.setAppearance(id),
+    onChange: id => {
+        // Changing the interface theme during a paused/running flight cannot
+        // replace the aircraft or its earned ability mid-run.
+        if (gameState === 'start' || gameState === 'terminated') hovercraft.setAppearance(id);
+    },
 });
 const hangarPanel = new HangarPanel({
     selection: aircraftSelection,
@@ -453,6 +461,7 @@ function resetForNewMode() {
     scoreManager.reset();
     ringCollectionDeadline.reset();
     hovercraft.reset();
+    hovercraft.setAppearance(aircraftSelection.activeId);
     trackManager.reset({ random: Math.random });
     cameraDynamics.snapTo(hovercraft);
     wasBoosting = false;
@@ -602,6 +611,11 @@ async function startRunning() {
             beginOnlineRun();
         }
         await audioPromise;
+        if (isNewRun) {
+            activeFlightAircraftId = aircraftSelection.activeId;
+            activeFlightAbility = eliteAbilityFor(activeFlightAircraftId, aircraftSelection.ownedIds);
+            hovercraft.setAppearance(activeFlightAircraftId);
+        }
         setGameState('running');
         clock.getDelta();
         if (!friendPanel.dialog.open && !dailyPanel.dialog.open
@@ -643,6 +657,7 @@ function restartRun() {
     ringCollectionDeadline.reset();
     updateRingDeadlineDisplay();
     hovercraft.reset();
+    hovercraft.setAppearance(aircraftSelection.activeId);
     if (gameMode === 'friend') {
         activeFriendRun = null;
         friendPanel.status.textContent = 'Use the original challenge link to start a new attempt.';
@@ -937,7 +952,9 @@ function animate() {
             nearMisses,
             collided,
             collisionType,
-        } = trackManager.update(delta, hovercraft);
+        } = trackManager.update(delta, hovercraft, {
+            ringCaptureRadius: activeFlightAbility.ringCaptureRadius,
+        });
 
         // The countdown uses active-game delta, not wall-clock time. A ring
         // picked up on the expiration frame resets the deadline first.
@@ -948,7 +965,9 @@ function animate() {
         // frame. Ring removal has already happened inside TrackManager, so
         // discarding these counts would silently lose a legitimate collection.
         if (collectedRings > 0) {
-            if (collectedEnergyRings > 0) hovercraft.activateEnergyBoost();
+            if (collectedEnergyRings > 0) {
+                hovercraft.activateEnergyBoost(activeFlightAbility.energyBoostDuration);
+            }
             const earnedSpeedLevels = scoreManager.collectRings(collectedRings);
             if (earnedSpeedLevels > 0) {
                 hovercraft.setSpeedProgressionLevel(scoreManager.speedProgressionLevel);
@@ -996,7 +1015,8 @@ function animate() {
             wasBoosting = hasSpeedFx;
 
             cameraDynamics.update(delta, hovercraft, isBoosting, isSurging);
-            ringGuidance.update(trackManager.energyRings, hovercraft);
+            ringGuidance.update(trackManager.energyRings, hovercraft,
+                activeFlightAbility.ringCaptureRadius);
             const liveForwardSpeed = Math.max(0, -hovercraft.velocity.z);
             speedParticles.update(delta, camera, liveForwardSpeed, hasSpeedFx);
             audioEngine.update(liveForwardSpeed, hasSpeedFx);

@@ -952,9 +952,7 @@ function animate() {
             nearMisses,
             collided,
             collisionType,
-        } = trackManager.update(delta, hovercraft, {
-            ringCaptureRadius: activeFlightAbility.ringCaptureRadius,
-        });
+        } = trackManager.update(delta, hovercraft, activeFlightAbility.ringCaptureRadius);
 
         // The countdown uses active-game delta, not wall-clock time. A ring
         // picked up on the expiration frame resets the deadline first.

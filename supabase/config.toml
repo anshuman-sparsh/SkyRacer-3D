@@ -9,3 +9,6 @@ verify_jwt = true
 
 [functions.daily-challenge]
 verify_jwt = true
+
+[functions.friend-challenge]
+verify_jwt = true

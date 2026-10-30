@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GroundAnchor } from './GroundAnchor.js';
+import { appearanceFor } from '../hangar/AircraftAppearances.js';
 
 const MAX_ROLL = THREE.MathUtils.degToRad(30);
 const MAX_PITCH = THREE.MathUtils.degToRad(14);
@@ -116,6 +117,7 @@ export class HoverCraft extends THREE.Group {
         this.engineGlows = [];
         this.engineTrails = [];
         this.#buildModel();
+        this.setAppearance('ember-striker');
 
         this.position.set(0, 3, 0);
         this.name = 'HoverCraft';
@@ -140,6 +142,8 @@ export class HoverCraft extends THREE.Group {
         });
         const glowMaterial = new THREE.MeshBasicMaterial({ color: 0x8cfff0 });
         const hotCoreMaterial = new THREE.MeshBasicMaterial({ color: 0xfff2a6 });
+
+        this.paintMaterials = { hullMaterial, trimMaterial, canopyMaterial, glowMaterial, hotCoreMaterial };
 
         // A tapered hexagonal fuselage provides a crisp jet silhouette at very low
         // vertex cost. Forward travel is negative Z, so the cone points that way.
@@ -213,6 +217,22 @@ export class HoverCraft extends THREE.Group {
         tailFin.position.set(0, 0.38, 1.25);
         tailFin.rotation.x = THREE.MathUtils.degToRad(-12);
         this.visual.add(tailFin);
+    }
+
+    setAppearance(id) {
+        const paint = appearanceFor(id);
+        this.appearanceId = id;
+        const m = this.paintMaterials;
+        m.hullMaterial.color.setHex(paint.hull);
+        m.hullMaterial.emissive.setHex(paint.hullGlow);
+        m.trimMaterial.color.setHex(paint.trim);
+        m.trimMaterial.emissive.setHex(paint.trimGlow);
+        m.canopyMaterial.color.setHex(paint.canopy);
+        m.canopyMaterial.emissive.setHex(paint.canopyGlow);
+        m.glowMaterial.color.setHex(paint.exhaust);
+        m.hotCoreMaterial.color.setHex(paint.hotCore);
+        for (const trail of this.engineTrails) trail.material.color.setHex(paint.trail);
+        this.groundAnchor.material?.color?.setHex(paint.exhaust);
     }
 
     update(delta, inputState) {

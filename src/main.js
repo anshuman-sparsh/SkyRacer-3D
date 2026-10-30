@@ -25,6 +25,7 @@ import { FriendChallengeService } from './services/FriendChallengeService.js';
 import { ThemeController } from './ui/ThemeController.js';
 import { HangarPanel } from './ui/HangarPanel.js';
 import { AircraftSelection } from './hangar/AircraftSelection.js';
+import { HANGAR_AIRCRAFT } from './hangar/HangarCatalog.js';
 import { QuickMenu } from './ui/QuickMenu.js';
 import { shouldToggleFlightPause } from './ui/FlightKeyPolicy.js';
 import { createDailyRandom } from './utils/DailyChallenge.js';
@@ -189,6 +190,21 @@ const dailyPanel = new DailyChallengePanel({
         && !dailySubmitting,
 });
 const themeController = new ThemeController();
+const hangarUnlock = document.querySelector('[data-hangar-unlock]');
+const hangarUnlockName = document.querySelector('[data-hangar-unlock-name]');
+const hangarUnlockOpen = document.querySelector('[data-hangar-unlock-open]');
+function showHangarUnlock(ids) {
+    if (gameState !== 'terminated') return;
+    const matched = HANGAR_AIRCRAFT.find(a => ids.includes(a.id));
+    if (!matched) return;
+    hangarUnlockName.textContent = matched.name.toUpperCase() + ' UNLOCKED!';
+    hangarUnlock.hidden = false;
+}
+function openNewHangarUnlock() {
+    if (gameState !== 'terminated') return;
+    backToMainMenu();
+    hangarPanel.open();
+}
 const aircraftSelection = new AircraftSelection({
     storage: (() => { try { return window.localStorage; } catch { return null; } })(),
     theme: themeController.theme,
@@ -197,6 +213,7 @@ const aircraftSelection = new AircraftSelection({
 const hangarPanel = new HangarPanel({
     selection: aircraftSelection,
     loadProgress: () => leaderboard.getHangarProgress(),
+    onNewUnlock: showHangarUnlock,
     getTheme: () => themeController.theme,
     canOpen: () => gameState === 'start' && !startTransitionPending && !friendStartPending,
 });
@@ -287,6 +304,7 @@ function setGameState(nextState, terminationReason = 'collision') {
     const isStart = nextState === 'start';
     stateOverlay.dataset.state = nextState;
     hangarPanel.setAvailable(nextState === 'start');
+    if (nextState === 'start') hangarUnlock.hidden = true;
     overlayHero.hidden = !isStart;
     startFlightButton.hidden = !(isStart || nextState === 'paused');
     startFlightButton.textContent = nextState === 'paused' ? 'RESUME FLIGHT' : 'START FLIGHT';
@@ -1059,6 +1077,7 @@ function disposeApp() {
     friendPanel.dispose();
     quickMenu.dispose();
     themeController.button?.removeEventListener('click', handleHangarThemeChange);
+    hangarUnlockOpen.removeEventListener('click', openNewHangarUnlock);
     hangarPanel.dispose();
     themeController.dispose();
     inputManager.destroy();
@@ -1105,8 +1124,10 @@ restartButton.addEventListener('click', restartRun);
 exitMenuButton.addEventListener('click', backToMainMenu);
 classicModeButton.addEventListener('click', returnToClassic);
 dailySubmitButton.addEventListener('click', openDailyResults);
+hangarUnlockOpen.addEventListener('click', openNewHangarUnlock);
 window.addEventListener('pagehide', disposeApp, { once: true });
 setGameState('start');
+if (leaderboard.enabled) void hangarPanel.refreshProgress();
 updateHud();
 resizeViewport();
 animate();

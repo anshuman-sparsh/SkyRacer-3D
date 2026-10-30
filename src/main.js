@@ -190,12 +190,12 @@ const themeController = new ThemeController();
 const friendPanel = new FriendChallengePanel({
     service: friendService,
     onOpen: () => { if (gameState === 'running') setGameState('paused'); },
-    getResult: () => gameMode === 'classic' && gameState === 'terminated' && onlineSubmitted
+    getResult: () => gameMode === 'classic' && gameState === 'terminated' && onlineRunPromise
         ? { score: scoreManager.currentScore, rings: scoreManager.ringsCollected,
-            distance: scoreManager.distance, runId: lastClassicRunId }
+            distance: scoreManager.distance, runIdPromise: onlineRunPromise }
         : null,
     canCreate: () => gameMode === 'classic' && gameState === 'terminated'
-        && scoreManager.currentScore > 0 && onlineSubmitted && Boolean(lastClassicRunId)
+        && scoreManager.currentScore > 0 && Boolean(onlineRunPromise)
         && !startTransitionPending,
     onAccept: launchFriendChallenge,
 });

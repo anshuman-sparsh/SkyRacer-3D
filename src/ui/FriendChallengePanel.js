@@ -28,6 +28,7 @@ export class FriendChallengePanel {
         this.pending = readChallengeLink(window.location.href);
         this.challenge = null;
         this.sharedLink = null;
+        this.verifiedOutcome = null;
         this.opener = this.menuButton;
         this.busy = false;
         this.disposed = false;
@@ -108,12 +109,25 @@ export class FriendChallengePanel {
     }
 
     updateOutcome() {
+        if (this.verifiedOutcome !== null) {
+            this.outcome.textContent = this.verifiedOutcome;
+            return;
+        }
         const score = this.getResult()?.score;
         this.outcome.textContent = this.challenge && Number.isSafeInteger(score) && score >= 0
             ? (beatsChallenge(score, this.challenge.targetScore)
                 ? 'Your local score beats the target. Server confirmation is still required.'
                 : 'Your score has not beaten the target yet.')
             : '';
+    }
+
+    /** Preserve a server-confirmed result across reopening and refreshing the dialog. */
+    setVerifiedResult(result) {
+        this.verifiedOutcome = result === null ? null
+            : (result.won
+                ? 'Challenge beaten — verified by SkyRacer!'
+                : 'Finished! Your verified score did not beat the target.');
+        this.updateOutcome();
     }
 
     async create() {

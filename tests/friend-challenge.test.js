@@ -67,7 +67,7 @@ test('M4-A frontend exists but cannot claim an unverified challenge is active', 
         'friend-details','friend-creator','friend-target','friend-expiry','friend-outcome']) {
         assert.ok(html.includes('data-' + hook), 'Missing ' + hook);
     }
-    assert.match(main, /friendService = \{ enabled: false \}/);
+    assert.match(main, /friendService = new FriendChallengeService\(leaderboard\)/);
     assert.match(main, /friendPanel\.dispose\(\)/);
     assert.match(main, /friendPanel\.dialog\.open/);
     assert.match(css, /\.friend-dialog/);

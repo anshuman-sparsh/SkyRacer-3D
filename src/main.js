@@ -191,9 +191,10 @@ const autoNameError = document.querySelector('[data-classic-name-error]');
 const autoRetry = document.querySelector('[data-classic-retry]');
 classicAutoSubmit = new ClassicAutoSubmit({ leaderboard, onStatus({ status, message }) {
     autoScoreStatus.textContent = message;
-    autoScoreStatus.hidden = gameMode !== 'classic' || status === 'idle';
-    autoNameForm.hidden = status !== 'needs-name';
-    autoRetry.hidden = status !== 'failed';
+    const showClassicResults = gameMode === 'classic' && gameState === 'terminated';
+    autoScoreStatus.hidden = !showClassicResults || status === 'idle';
+    autoNameForm.hidden = !showClassicResults || status !== 'needs-name';
+    autoRetry.hidden = !showClassicResults || status !== 'failed';
     autoNameError.textContent = status === 'needs-name' ? message : '';
     scoreSubmitButton.hidden = true;
     if (status === 'saved') { void hangarPanel.refreshProgress(); friendPanel.updateActions(); }

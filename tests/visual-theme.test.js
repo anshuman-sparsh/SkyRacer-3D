@@ -123,3 +123,32 @@ test('orange pre-flight border remains whole while cyan styling is untouched', (
  assert.match(html, /<meta name="theme-color" content="#0b0620"\s*\/>/);
  assert.match(html, /data-theme-toggle>APPEARANCE · Orange \/ Black/);
 });
+
+test('first-paint theme matches ThemeController before CSS loads', () => {
+    const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    const boot = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+    assert.ok(boot, 'initial synchronous theme script is present');
+    const bootTheme = stored => {
+        const root = { dataset: {} };
+        const meta = { content: '' };
+        const document = {
+            documentElement: root,
+            querySelector: () => meta,
+        };
+        const localStorage = { getItem: () => {
+            if (stored === 'blocked') throw Error('Storage blocked');
+            return stored;
+        } };
+        new Function('document', 'localStorage', boot)(document, localStorage);
+        return { theme: root.dataset.theme, meta: meta.content };
+    };
+    for (const [saved, expected] of [
+        [null, 'neon'], ['invalid', 'neon'], ['neon', 'neon'],
+        ['ember', 'ember'], ['blocked', 'neon'],
+    ]) {
+        const { theme, meta } = bootTheme(saved);
+        assert.equal(theme, expected);
+        assert.equal(theme, normalizeTheme(saved === 'blocked' ? null : saved));
+        assert.equal(meta, expected === 'ember' ? '#080808' : '#0b0620');
+    }
+});

@@ -112,7 +112,7 @@ export class ClassicAutoSubmit {
             }
             const registered = typeof snapshot?.me?.nickname === 'string'
                 ? snapshot.me.nickname : null;
-            const nickname = registered ?? candidate.nickname ?? this.leaderboard.getNickname();
+            const nickname = registered ?? candidate.nickname;
             if (!NICKNAME.test(nickname ?? '')) {
                 this.#emit('needs-name', 'New personal best! Choose your permanent pilot nickname to save it.');
                 return;

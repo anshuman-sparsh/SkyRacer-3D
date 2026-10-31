@@ -278,6 +278,18 @@
         <strong data-hangar-unlock-name>NEW AIRCRAFT UNLOCKED</strong>
         <button type="button" data-hangar-unlock-open>VIEW IN HANGAR</button>
       </div>
+      <div class="classic-auto" data-classic-auto-panel aria-live="polite">
+        <p class="classic-auto__status" data-classic-auto-status hidden></p>
+        <form class="classic-auto__name" data-classic-name-form hidden>
+          <label for="classic-auto-nickname">Register your permanent pilot nickname to save this Classic score</label>
+          <div class="classic-auto__name-row">
+            <input id="classic-auto-nickname" data-classic-name-input name="nickname" required minlength="3" maxlength="16" pattern="[A-Za-z0-9_]{3,16}" autocomplete="nickname" placeholder="YourPilotName" />
+            <button type="submit">SAVE MY SCORE</button>
+          </div>
+          <p data-classic-name-error role="status"></p>
+        </form>
+        <button class="classic-auto__retry" type="button" data-classic-retry hidden>RETRY SAVING SCORE</button>
+      </div>
       <div class="state-overlay__actions">
         <button class="state-overlay__action is-primary" type="button" data-start-flight>START FLIGHT</button>
         <button class="state-overlay__action is-primary" type="button" data-restart hidden>FLY AGAIN</button>

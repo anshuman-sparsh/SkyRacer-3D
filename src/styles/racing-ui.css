@@ -855,3 +855,13 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
 .hangar-unlock[hidden],
 .hangar-aircraft__default[hidden],
 .hangar-shell [hidden] { display: none !important; }
+
+/* Classic PB submission: lightweight results-screen feedback, no leaderboard tap. */
+.classic-auto { margin: 14px auto 0; width: 100%; max-width: 510px; }
+.classic-auto__status { color: var(--sr-accent-bright); font: 650 12px/1.5 var(--sr-font-body); }
+.classic-auto__name { display: grid; gap: 8px; margin-top: 12px; text-align: left; }
+.classic-auto__name label { font: 650 12px/1.5 var(--sr-font-body); color: var(--sr-text); }
+.classic-auto__name-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.classic-auto__name input { flex: 1 1 150px; min-width: 0; padding: 11px; border: 1px solid var(--sr-line); border-radius: 8px; background: var(--sr-bg); color: var(--sr-text); }
+.classic-auto__name button, .classic-auto__retry { padding: 11px 14px; border: 1px solid var(--sr-line); border-radius: 8px; background: var(--sr-accent); color: var(--sr-action-text); font: 700 12px/1.2 var(--sr-font-body); cursor: pointer; }
+.classic-auto [hidden] { display: none !important; }

@@ -32,9 +32,6 @@ export class HangarPanel {
         this.preview = document.querySelector('[data-hangar-preview]');
         this.canvas = document.querySelector('[data-hangar-canvas]');
         this.viewer = new HangarPreview(this.canvas);
-        this.equipButton = document.querySelector('[data-hangar-equip]');
-        this.matchButton = document.querySelector('[data-hangar-match]');
-        this.selectedStatus = document.querySelector('[data-hangar-selected-state]');
         this.previewId = selection.activeId;
         this.tab = 'aircraft';
 
@@ -47,8 +44,6 @@ export class HangarPanel {
             }
         };
         this.handleAircraft = () => this.setTab('aircraft');
-        this.handleEquip = () => { if (this.selection.choose(this.previewId)) this.refresh(); };
-        this.handleMatch = () => { this.selection.choose('match-theme'); this.previewId = this.selection.activeId; this.refresh(); };
         this.handleAchievements = () => this.setTab('achievements');
         this.handleTabKeys = event => {
             if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -61,8 +56,6 @@ export class HangarPanel {
         this.trigger.addEventListener('click', this.handleOpen);
         this.closeButton.addEventListener('click', this.handleClose);
         this.dialog.addEventListener('close', this.handleDialogClose);
-        this.equipButton.addEventListener('click',this.handleEquip);
-        this.matchButton.addEventListener('click',this.handleMatch);
         this.aircraftTab.addEventListener('click', this.handleAircraft);
         this.achievementsTab.addEventListener('click', this.handleAchievements);
         this.aircraftTab.addEventListener('keydown', this.handleTabKeys);
@@ -81,8 +74,8 @@ export class HangarPanel {
 
     refresh() {
         const equipped = this.selection.activeId;
-        const equippedAircraft = HANGAR_AIRCRAFT.find(a=>a.id===equipped);
-        const chosen = HANGAR_AIRCRAFT.find(a=>a.id===this.previewId) || equippedAircraft;
+        const equippedAircraft = HANGAR_AIRCRAFT.find(aircraft => aircraft.id === equipped);
+        const chosen = HANGAR_AIRCRAFT.find(aircraft => aircraft.id === this.previewId) || equippedAircraft;
         this.entryAircraft.textContent = equippedAircraft.name;
         this.defaultName.textContent = chosen.name;
         const elite = chosen.id === 'nova-vortex' || chosen.id === 'apex-overdrive';
@@ -92,19 +85,26 @@ export class HangarPanel {
             : (ownedChoice ? '' : 'LOCKED · ') + chosen.description;
         this.preview.dataset.aircraft = chosen.id;
         this.viewer.setAircraft(chosen.id);
-        const owned = this.selection.ownedIds.includes(chosen.id);
-        this.equipButton.disabled = !owned || chosen.id === equipped;
-        this.equipButton.textContent = !owned ? 'LOCKED · ACHIEVEMENT REQUIRED'
-            : chosen.id === equipped ? 'EQUIPPED' : 'EQUIP AIRCRAFT';
-        this.matchButton.disabled = this.selection.preference === 'match-theme';
-        this.selectedStatus.textContent = this.selection.preference === 'match-theme'
-            ? 'MATCH THEME · ACTIVE' : 'MANUALLY SELECTED · ' + equippedAircraft.name;
         for (const item of this.collection.children) {
-            const current = item.dataset.aircraft === equipped;
-            item.classList.toggle('is-theme-default',current);
-            item.classList.toggle('is-preview',item.dataset.aircraft === chosen.id);
-            const label = item.querySelector('[data-hangar-theme-default]');
-            if(label)label.hidden = !current;
+            const id = item.dataset.aircraft;
+            const owned = this.selection.ownedIds.includes(id);
+            const current = id === equipped;
+            const isStarter = id === 'cyan-striker' || id === 'ember-striker';
+            item.classList.toggle('is-theme-default', current);
+            item.classList.toggle('is-preview', id === chosen.id);
+            item.setAttribute('aria-label', 'Preview ' + HANGAR_AIRCRAFT.find(a => a.id === id).name);
+            const equip = item.querySelector('[data-hangar-card-equip]');
+            const locked = item.querySelector('[data-hangar-card-locked]');
+            const requirement = item.querySelector('[data-hangar-requirement]');
+            const progress = item.querySelector('[data-aircraft-progress]');
+            equip.hidden = !owned;
+            equip.disabled = current;
+            equip.textContent = current ? 'EQUIPPED' : 'EQUIP';
+            equip.setAttribute('aria-label', (current ? 'Equipped: ' : 'Equip ') +
+                HANGAR_AIRCRAFT.find(a => a.id === id).name);
+            locked.hidden = owned;
+            requirement.hidden = owned || isStarter;
+            progress.hidden = owned || isStarter;
         }
     }
 
@@ -171,28 +171,22 @@ export class HangarPanel {
                 Math.min(actual,target).toLocaleString()+' / '+target.toLocaleString();
         }
         for (const item of this.collection.children) {
-            const id=item.dataset.aircraft;
-            const owned=this.selection.ownedIds.includes(id);
-            item.querySelector('.hangar-aircraft__tier').textContent =
-                owned ? 'UNLOCKED · EQUIPABLE' : 'LOCKED · ACHIEVEMENT';
-            const progress=item.querySelector('[data-aircraft-progress]');
-            if (!progress) continue;
+            const id = item.dataset.aircraft;
+            const progress = item.querySelector('[data-aircraft-progress]');
             const required = {
                 'silver-arrow': [['totalRings',100]],
                 'voidrunner': [['totalDistance',10000],['totalRings',500]],
                 'nova-vortex': [['totalDistance',25000],['totalRings',1500]],
                 'apex-overdrive': [['friendWins',10],['dailyCompletions',10]],
             }[id] || [];
-            progress.textContent = required.length
-                ? required.map(([key,goal])=>{
-                    const label = {totalRings:'rings',totalDistance:'distance',
-                        friendWins:'wins',dailyCompletions:'daily days'}[key];
-                    return Math.min(Math.floor(Number(stats[key])||0),goal).toLocaleString()
-                        +'/'+goal.toLocaleString()+' '+label;
-                }).join(' · ')
-                : 'Free starter';
-
+            progress.textContent = required.map(([key,goal]) => {
+                const label = {totalRings:'rings',totalDistance:'distance',
+                    friendWins:'wins',dailyCompletions:'daily days'}[key];
+                return Math.min(Math.floor(Number(stats[key])||0),goal).toLocaleString()
+                    +'/'+goal.toLocaleString()+' '+label;
+            }).join(' · ');
         }
+        this.refresh();
     }
 
     setTab(tab) {
@@ -212,6 +206,20 @@ export class HangarPanel {
             const item = document.createElement('article');
             item.className = 'hangar-aircraft';
             item.dataset.aircraft = aircraft.id;
+            // The card itself selects the 3D preview. Only its Equip button
+            // changes the active aircraft; locked aircraft can still be previewed.
+            item.tabIndex = 0;
+            item.setAttribute('role', 'group');
+            item.setAttribute('aria-label', 'Preview ' + aircraft.name);
+            item.addEventListener('click', event => {
+                if (event.target.closest('button')) return;
+                this.selectPreview(aircraft.id);
+            });
+            item.addEventListener('keydown', event => {
+                if (event.target !== item || !['Enter', ' '].includes(event.key)) return;
+                event.preventDefault();
+                this.selectPreview(aircraft.id);
+            });
             const marker = document.createElement('span');
             marker.className = 'hangar-aircraft__marker';
             marker.dataset.color = aircraft.color;
@@ -220,27 +228,32 @@ export class HangarPanel {
             details.className = 'hangar-aircraft__details';
             const heading = document.createElement('h3');
             heading.textContent = aircraft.name;
-            const tier = document.createElement('p');
-            tier.className = 'hangar-aircraft__tier';
-            tier.textContent = aircraft.tier === 'Starter' ? 'FREE · EQUIPABLE' : aircraft.tier + ' · LOCKED';
             const requirement = document.createElement('p');
-            requirement.textContent = aircraft.requirement;
-            const label = document.createElement('span');
-            label.className = 'hangar-aircraft__default';
-            label.dataset.hangarThemeDefault = '';
-            label.textContent = 'Equipped';
-            label.hidden = true;
+            requirement.dataset.hangarRequirement = '';
+            requirement.textContent = aircraft.tier === 'Starter' ? '' : aircraft.requirement;
+            requirement.hidden = aircraft.tier === 'Starter';
             const progress = document.createElement('p');
             progress.dataset.aircraftProgress = '';
-            progress.textContent = aircraft.tier === 'Starter' ? 'Free starter' : 'Checking progress…';
-            details.append(heading, tier, requirement, progress, label);
-            const inspect = document.createElement('button');
-            inspect.type = 'button';
-            inspect.className = 'hangar-aircraft__inspect';
-            inspect.textContent = 'PREVIEW';
-            inspect.setAttribute('aria-label', 'Preview ' + aircraft.name);
-            inspect.addEventListener('click',()=>this.selectPreview(aircraft.id));
-            item.append(marker, details, inspect);
+            progress.textContent = aircraft.tier === 'Starter' ? '' : 'Checking progress…';
+            progress.hidden = aircraft.tier === 'Starter';
+            details.append(heading, requirement, progress);
+            const equip = document.createElement('button');
+            equip.type = 'button';
+            equip.className = 'hangar-aircraft__equip';
+            equip.dataset.hangarCardEquip = '';
+            equip.textContent = 'EQUIP';
+            equip.addEventListener('click', event => {
+                event.stopPropagation();
+                if (this.selection.choose(aircraft.id)) {
+                    this.previewId = aircraft.id;
+                    this.refresh();
+                }
+            });
+            const locked = document.createElement('span');
+            locked.className = 'hangar-aircraft__locked';
+            locked.dataset.hangarCardLocked = '';
+            locked.textContent = '🔒 Locked';
+            item.append(marker, details, equip, locked);
             fragment.append(item);
         }
         this.collection.append(fragment);
@@ -267,8 +280,6 @@ export class HangarPanel {
         this.trigger.removeEventListener('click', this.handleOpen);
         this.closeButton.removeEventListener('click', this.handleClose);
         this.dialog.removeEventListener('close', this.handleDialogClose);
-        this.equipButton.removeEventListener('click',this.handleEquip);
-        this.matchButton.removeEventListener('click',this.handleMatch);
         this.viewer.dispose();
         this.aircraftTab.removeEventListener('click', this.handleAircraft);
         this.achievementsTab.removeEventListener('click', this.handleAchievements);

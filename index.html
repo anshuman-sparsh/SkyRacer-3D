@@ -443,7 +443,7 @@
     </div>
     <p class="help-dialog__note">Any verified completed Classic flight can create your first challenge. Each new challenge must beat your last challenge score. A tie does not win. Links contain only an opaque server-issued ID.</p>
   </dialog>
-  <dialog id="skyracer-hangar" class="hangar-shell" data-hangar-dialog aria-labelledby="hangar-title" aria-describedby="hangar-intro">
+  <dialog id="skyracer-hangar" class="hangar-shell" data-hangar-dialog aria-labelledby="hangar-title">
     <div class="hangar-shell__inner">
       <header class="hangar-shell__header">
         <div>
@@ -452,7 +452,6 @@
         </div>
         <button type="button" class="hangar-shell__close" data-hangar-close aria-label="Return to pre-flight screen">← BACK TO FLIGHT</button>
       </header>
-      <p class="hangar-shell__intro" id="hangar-intro">Explore the aircraft lineup and achievements. Choose between two free aircraft, or preview locked advanced designs. Unlock advanced aircraft by completing server-verified flights and milestones.</p>
       <div class="hangar-preview" data-hangar-preview data-aircraft="ember-striker">
         <div class="hangar-preview__grid" aria-hidden="true"></div>
         <div class="hangar-preview__canvas" data-hangar-canvas aria-label="Interactive 3D aircraft preview"></div>
@@ -467,18 +466,12 @@
           <small data-hangar-ability>Starter aircraft · standard flight handling</small>
         </div>
       </div>
-      <div class="hangar-equipped">
-        <span data-hangar-selected-state>Match Theme · Active</span>
-        <button type="button" data-hangar-equip>USE THIS AIRCRAFT</button>
-        <button type="button" data-hangar-match>MATCH THEME</button>
-      </div>
       <p class="hangar-shell__section-note" data-hangar-progress-status role="status" aria-live="polite">Checking online achievement progress…</p>
       <div class="hangar-shell__tabs" role="tablist" aria-label="Hangar sections">
         <button type="button" data-hangar-tab-aircraft id="hangar-tab-aircraft" role="tab" aria-selected="true" aria-controls="hangar-panel-aircraft">AIRCRAFT</button>
         <button type="button" data-hangar-tab-achievements id="hangar-tab-achievements" role="tab" aria-selected="false" aria-controls="hangar-panel-achievements" tabindex="-1">ACHIEVEMENTS</button>
       </div>
       <section id="hangar-panel-aircraft" data-hangar-panel-aircraft role="tabpanel" aria-labelledby="hangar-tab-aircraft">
-        <p class="hangar-shell__section-note">Equip unlocked aircraft and inspect the requirements for the others.</p>
         <div class="hangar-collection" data-hangar-collection></div>
       </section>
       <section id="hangar-panel-achievements" data-hangar-panel-achievements role="tabpanel" aria-labelledby="hangar-tab-achievements" hidden>

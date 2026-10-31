@@ -865,3 +865,13 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
 .classic-auto__name input { flex: 1 1 150px; min-width: 0; padding: 11px; border: 1px solid var(--sr-line); border-radius: 8px; background: var(--sr-bg); color: var(--sr-text); }
 .classic-auto__name button, .classic-auto__retry { padding: 11px 14px; border: 1px solid var(--sr-line); border-radius: 8px; background: var(--sr-accent); color: var(--sr-action-text); font: 700 12px/1.2 var(--sr-font-body); cursor: pointer; }
 .classic-auto [hidden] { display: none !important; }
+
+/* Hangar: whole-card preview and a single Equip/Equipped action per aircraft. */
+.hangar-aircraft { cursor:pointer; }
+.hangar-aircraft:hover { border-color:var(--sr-line); background:var(--sr-panel-raised); }
+.hangar-aircraft:focus-visible { outline:2px solid var(--sr-accent-bright); outline-offset:3px; }
+.hangar-aircraft__equip { position:absolute; right:12px; bottom:10px; min-height:31px; padding:5px 12px; border:1px solid var(--sr-line); border-radius:6px; background:var(--sr-accent-soft); color:var(--sr-accent-bright); font:700 11px/1.3 var(--sr-font-body); cursor:pointer; }
+.hangar-aircraft__equip:hover:not(:disabled) { background:var(--sr-panel-raised); }
+.hangar-aircraft__equip:disabled { cursor:default; opacity:.8; }
+.hangar-aircraft__locked { position:absolute; right:12px; bottom:16px; color:var(--sr-muted); font:700 11px/1.3 var(--sr-font-body); }
+.hangar-aircraft__equip:focus-visible { outline:2px solid var(--sr-accent-bright); outline-offset:2px; }

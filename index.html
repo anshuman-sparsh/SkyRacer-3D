@@ -11,11 +11,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&amp;family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet" />
   <script>
-    // Apply the saved palette before CSS paints. Never depend on localStorage.
+    // Match ThemeController's default before the first paint, with no theme flash.
+    // Only an explicitly saved Ember preference overrides the Neon/Cyan default.
+    let initialTheme = 'neon';
     try {
-      document.documentElement.dataset.theme =
-        localStorage.getItem('skyracer_theme_v2') === 'neon' ? 'neon' : 'ember';
-    } catch { document.documentElement.dataset.theme = 'ember'; }
+      if (localStorage.getItem('skyracer_theme_v2') === 'ember') initialTheme = 'ember';
+    } catch { /* Storage denied: keep the Neon/Cyan default. */ }
+    document.documentElement.dataset.theme = initialTheme;
+    document.querySelector('meta[name="theme-color"]').content =
+      initialTheme === 'ember' ? '#080808' : '#0b0620';
   </script>
   <style>
     :root {

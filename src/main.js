@@ -17,6 +17,7 @@ import { InputManager } from './managers/InputManager.js';
 import { ScoreManager } from './managers/ScoreManager.js';
 import { RingCollectionDeadline } from './managers/RingCollectionDeadline.js';
 import { LeaderboardService } from './services/LeaderboardService.js';
+import { ClassicAutoSubmit } from './services/ClassicAutoSubmit.js';
 import { DailyChallengeService } from './services/DailyChallengeService.js';
 import { DailyChallengePanel } from './ui/DailyChallengePanel.js';
 import { FriendChallengePanel } from './ui/FriendChallengePanel.js';
@@ -69,6 +70,7 @@ const dailyScoreManager = new ScoreManager({ recordsEnabled: false });
 let scoreManager = classicScoreManager;
 const ringCollectionDeadline = new RingCollectionDeadline();
 const leaderboard = new LeaderboardService();
+let classicAutoSubmit;
 const dailyService = new DailyChallengeService(leaderboard);
 // M4-A frontend only: server-issued challenges are unavailable until M4-B.
 const friendService = new FriendChallengeService(leaderboard);
@@ -182,6 +184,20 @@ let lastBestRingsRecord = false;
 let onlineRunPromise = null;
 let onlineSubmitted = false;
 let leaderboardReturnFocus = leaderboardButton;
+const autoScoreStatus = document.querySelector('[data-classic-auto-status]');
+const autoNameForm = document.querySelector('[data-classic-name-form]');
+const autoNameInput = document.querySelector('[data-classic-name-input]');
+const autoNameError = document.querySelector('[data-classic-name-error]');
+const autoRetry = document.querySelector('[data-classic-retry]');
+classicAutoSubmit = new ClassicAutoSubmit({ leaderboard, onStatus({ status, message }) {
+    autoScoreStatus.textContent = message;
+    autoScoreStatus.hidden = gameMode !== 'classic' || status === 'idle';
+    autoNameForm.hidden = status !== 'needs-name';
+    autoRetry.hidden = status !== 'failed';
+    autoNameError.textContent = status === 'needs-name' ? message : '';
+    scoreSubmitButton.hidden = true;
+    if (status === 'saved') { void hangarPanel.refreshProgress(); friendPanel.updateActions(); }
+} });
 const dailyPanel = new DailyChallengePanel({
     service: dailyService,
     onPlay: launchDailyChallenge,
@@ -326,8 +342,10 @@ function setGameState(nextState, terminationReason = 'collision') {
     exitMenuButton.hidden = !isTerminated;
     friendPanel.updateActions();
     friendPanel.updateOutcome();
-    scoreSubmitButton.hidden = gameMode !== 'classic'
-        || !isTerminated || !leaderboard.enabled || onlineSubmitted;
+    scoreSubmitButton.hidden = true;
+    autoScoreStatus.hidden = !isTerminated || gameMode !== 'classic' || classicAutoSubmit.status === 'idle';
+    autoNameForm.hidden = !isTerminated || gameMode !== 'classic' || classicAutoSubmit.status !== 'needs-name';
+    autoRetry.hidden = !isTerminated || gameMode !== 'classic' || classicAutoSubmit.status !== 'failed';
     stateTitle.classList.toggle('is-alert', isTerminated);
     stateTitle.classList.toggle('is-pulsing', !isTerminated);
 
@@ -363,6 +381,11 @@ function setGameState(nextState, terminationReason = 'collision') {
     }
 
     updateModeDisplays();
+    if (isTerminated && !wasTerminated && gameMode === 'classic') {
+        const completed = { runPromise: onlineRunPromise, score: scoreManager.currentScore,
+            rings: scoreManager.ringsCollected, distance: scoreManager.distance };
+        void classicAutoSubmit.completedRun(completed);
+    }
     if (isTerminated && !wasTerminated && gameMode === 'classic' && onlineRunPromise
         && scoreManager.currentScore > 0 && friendService.enabled) {
         const nickname = friendService.getKnownNickname();
@@ -705,7 +728,7 @@ function openLeaderboard(event) {
     if (!leaderboard.enabled || leaderboardDialog.open) return;
     leaderboardReturnFocus = event?.currentTarget ?? leaderboardButton;
     if (gameState === 'running') setGameState('paused');
-    leaderboardForm.hidden = gameMode !== 'classic' || gameState !== 'terminated' || onlineSubmitted;
+    leaderboardForm.hidden = true;
     leaderboardNickname.value = leaderboard.getNickname();
     leaderboardNickname.readOnly = false;
     leaderboardNicknameLabel.textContent = 'Your pilot nickname (3–16 letters, numbers or underscores)';
@@ -764,8 +787,8 @@ async function refreshLeaderboard() {
         const beatsPreviousBest = previousBest === null
             || scoreManager.currentScore > previousBest;
         const canSubmit = gameMode === 'classic' && gameState === 'terminated' && !onlineSubmitted && beatsPreviousBest;
-        leaderboardForm.hidden = !canSubmit;
-        scoreSubmitButton.hidden = !canSubmit || !leaderboard.enabled;
+        leaderboardForm.hidden = true;
+        scoreSubmitButton.hidden = true;
         leaderboardStatus.textContent = !beatsPreviousBest && gameState === 'terminated'
             ? `Your score must beat ${previousBest.toLocaleString()} points before you can submit again.`
             : entries.length
@@ -1081,6 +1104,8 @@ function disposeApp() {
     helpDialog.removeEventListener('close', restoreHelpFocus);
     leaderboardButton.removeEventListener('click', openLeaderboard);
     scoreSubmitButton.removeEventListener('click', openLeaderboard);
+    autoNameForm.removeEventListener('submit', submitClassicNickname);
+    autoRetry.removeEventListener('click', retryClassicSubmission);
     leaderboardCloseButton.removeEventListener('click', closeLeaderboard);
     leaderboardDialog.removeEventListener('close', restoreLeaderboardFocus);
     leaderboardRefreshButton.removeEventListener('click', refreshLeaderboard);
@@ -1128,6 +1153,13 @@ helpCloseButton.addEventListener('click', closeHelp);
 helpDialog.addEventListener('close', restoreHelpFocus);
 leaderboardButton.addEventListener('click', openLeaderboard);
 scoreSubmitButton.addEventListener('click', openLeaderboard);
+function submitClassicNickname(event) {
+    event.preventDefault();
+    void classicAutoSubmit.submitNickname(autoNameInput.value);
+}
+function retryClassicSubmission() { void classicAutoSubmit.resume(); }
+autoNameForm.addEventListener('submit', submitClassicNickname);
+autoRetry.addEventListener('click', retryClassicSubmission);
 leaderboardCloseButton.addEventListener('click', closeLeaderboard);
 leaderboardDialog.addEventListener('close', restoreLeaderboardFocus);
 leaderboardRefreshButton.addEventListener('click', refreshLeaderboard);
@@ -1143,7 +1175,11 @@ dailySubmitButton.addEventListener('click', openDailyResults);
 hangarUnlockOpen.addEventListener('click', openNewHangarUnlock);
 window.addEventListener('pagehide', disposeApp, { once: true });
 setGameState('start');
-if (leaderboard.enabled) void hangarPanel.refreshProgress();
+if (leaderboard.enabled) {
+    void hangarPanel.refreshProgress();
+    void classicAutoSubmit.resume();
+    window.addEventListener('online', () => { void classicAutoSubmit.resume(); });
+}
 updateHud();
 resizeViewport();
 animate();

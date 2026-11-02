@@ -84,6 +84,14 @@ export class InputManager {
     }
 
     #setKeyState(event, isPressed) {
+        // Gameplay shortcuts must never steal keys from editable controls.
+        // This covers Classic nickname registration and all present/future
+        // input fields, including custom textboxes and IME composition.
+        if (event.isComposing || event.target?.isContentEditable || event.target?.closest?.(
+            'input, textarea, select, [contenteditable]:not([contenteditable="false"]), ' +
+            '[role="textbox"], [role="searchbox"], [role="combobox"]'
+        )) return;
+
         // A keyboard-focused help control must retain native Enter/Space
         // activation. Gameplay input resumes normally after the dialog closes.
         if (event.target?.closest?.(

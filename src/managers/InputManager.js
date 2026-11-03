@@ -84,6 +84,10 @@ export class InputManager {
     }
 
     #setKeyState(event, isPressed) {
+        const action = KEY_ACTIONS[event.code];
+        // Key release still belongs to the game if focus moved after keydown.
+        // Do not cancel native behavior on the newly focused control.
+        if (!isPressed && action) this.state[action] = false;
         // Gameplay shortcuts must never steal keys from editable controls.
         // This covers Classic nickname registration and all present/future
         // input fields, including custom textboxes and IME composition.
@@ -92,15 +96,15 @@ export class InputManager {
             '[role="textbox"], [role="searchbox"], [role="combobox"]'
         )) return;
 
-        // A keyboard-focused help control must retain native Enter/Space
-        // activation. Gameplay input resumes normally after the dialog closes.
-        if (event.target?.closest?.(
-            '[data-help-open], [data-help-dialog], [data-leaderboard-open], [data-leaderboard-dialog], ' +
-            '[data-submit-score], [data-daily-open], [data-daily-menu], [data-daily-dialog], ' +
-            '[data-daily-submit], [data-classic-mode], [data-quick-open], [data-quick-menu], ' +
-            '[data-start-flight], [data-restart], [data-exit-menu]'
+        // Preserve native controls, including descendants such as button icons.
+        // The hold-to-boost button is intentionally a gameplay input surface.
+        const onBoost = this.boostButton
+            && event.target?.closest?.('[data-touch-boost]') === this.boostButton;
+        if (!onBoost && event.target?.closest?.(
+            'button, a[href], summary, dialog, [data-quick-menu], ' +
+            '[role="button"], [role="link"], [role="tab"], [role="menuitem"], ' +
+            '[role="checkbox"], [role="radio"], [role="slider"]'
         )) return;
-        const action = KEY_ACTIONS[event.code];
         if (!action) return;
 
         event.preventDefault();

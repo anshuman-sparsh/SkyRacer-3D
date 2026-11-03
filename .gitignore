@@ -8,3 +8,4 @@ vite-preview.log
 supabase/.env
 supabase/functions/.env
 .vercel/
+supabase/.temp/

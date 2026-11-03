@@ -1,12 +1,12 @@
 // M3 Daily Challenge: separate authenticated competition, no Classic writes.
 // All course dates and run IDs are issued by this server, never trusted from URL.
 import { withSupabase } from 'npm:@supabase/server@^1';
+import { readDailyLeaderboard } from './ranking.js';
 import {
-  DAILY_COURSE_VERSION, NICKNAME, RUN_ID, isPlausibleDailyResult,
+  DAILY_COURSE_VERSION, SUPPORTED_DAILY_COURSE_VERSIONS, NICKNAME, RUN_ID, isPlausibleDailyResult,
   isDailySubmissionOpen, utcDateAt,
 } from './validation.js';
 
-const TOP = 50;
 const bad = (message: string, status = 400) =>
   Response.json({ error: message }, { status, headers: { 'Cache-Control': 'no-store' } });
 
@@ -17,53 +17,16 @@ export default {
     const now = Date.now();
     const today = utcDateAt(now);
     if (request.method === 'GET') {
-      const { data: best, error: bestError } = await ctx.supabaseAdmin
-        .from('daily_best_scores')
-        .select('user_id,score,rings,achieved_at,player_profiles(nickname)')
-        .eq('challenge_date', today)
-        .eq('course_version', DAILY_COURSE_VERSION)
-        .order('score', { ascending: false })
-        .order('achieved_at', { ascending: true })
-        .limit(TOP);
-      if (bestError) return bad('Daily rankings are temporarily unavailable.', 503);
-      const { data: mine, error: mineError } = await ctx.supabaseAdmin
-        .from('daily_best_scores')
-        .select('score,rings,achieved_at')
-        .eq('challenge_date', today).eq('course_version', DAILY_COURSE_VERSION).eq('user_id', playerId)
-        .maybeSingle();
-      if (mineError) return bad('Your daily ranking is temporarily unavailable.', 503);
-      const { data: profile, error: profileError } = await ctx.supabaseAdmin
-        .from('player_profiles')
-        .select('nickname').eq('user_id', playerId).maybeSingle();
-      if (profileError) return bad('Your pilot profile is temporarily unavailable.', 503);
-      let rank: number | null = null;
-      if (mine) {
-        const [above, aheadOnTie] = await Promise.all([
-          ctx.supabaseAdmin.from('daily_best_scores')
-            .select('user_id', { count: 'exact', head: true })
-            .eq('challenge_date', today).eq('course_version', DAILY_COURSE_VERSION).gt('score', mine.score),
-          ctx.supabaseAdmin.from('daily_best_scores')
-            .select('user_id', { count: 'exact', head: true })
-            .eq('challenge_date', today).eq('course_version', DAILY_COURSE_VERSION).eq('score', mine.score)
-            .lt('achieved_at', mine.achieved_at),
-        ]);
-        if (above.error || aheadOnTie.error) return bad('Your daily rank is temporarily unavailable.', 503);
-        rank = (above.count ?? 0) + (aheadOnTie.count ?? 0) + 1;
+      try {
+        const snapshot = await readDailyLeaderboard(ctx.supabaseAdmin, playerId, today, DAILY_COURSE_VERSION);
+        return Response.json({
+          ...snapshot, date: today, courseVersion: DAILY_COURSE_VERSION,
+          nextResetAt: new Date(Date.parse(today + 'T00:00:00.000Z') + 86400000).toISOString(),
+          serverNow: new Date(now).toISOString(),
+        }, { headers: { 'Cache-Control': 'no-store' } });
+      } catch {
+        return bad('Daily rankings are temporarily unavailable.', 503);
       }
-      return Response.json({
-        date: today, courseVersion: DAILY_COURSE_VERSION,
-        nextResetAt: new Date(Date.parse(today + 'T00:00:00.000Z') + 86400000).toISOString(),
-        serverNow: new Date(now).toISOString(),
-        entries: (best ?? []).map((entry, i) => ({
-          rank: i + 1,
-          nickname: entry.player_profiles?.nickname ?? 'Pilot',
-          score: entry.score, rings: entry.rings,
-        })),
-        me: mine ? {
-          score: mine.score, rings: mine.rings, rank,
-        } : null,
-        nickname: profile?.nickname ?? null,
-      }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
     if (request.method !== 'POST') return bad('Method not allowed.', 405);
@@ -81,6 +44,9 @@ export default {
     }
 
     if (body.action === 'start') {
+      if (body.courseVersion !== DAILY_COURSE_VERSION) {
+        return bad('The Daily course has been updated. Reload the game before starting a new attempt.', 409);
+      }
       const minuteAgo = new Date(now - 60000).toISOString();
       const { count, error: countError } = await ctx.supabaseAdmin
         .from('daily_run_sessions')
@@ -113,7 +79,7 @@ export default {
         .select('started_at,challenge_date,course_version,submitted_at')
         .eq('run_id', body.runId).eq('user_id', playerId).maybeSingle();
       if (runError) return bad('Could not verify the daily run.', 503);
-      if (!run || run.submitted_at || run.course_version !== DAILY_COURSE_VERSION) {
+      if (!run || run.submitted_at || !SUPPORTED_DAILY_COURSE_VERSIONS.includes(run.course_version)) {
         return bad('This daily attempt is already submitted or unavailable.', 409);
       }
       if (!isDailySubmissionOpen(run.challenge_date, now)) {

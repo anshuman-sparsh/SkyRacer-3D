@@ -2,16 +2,17 @@
 // The auth wrapper verifies the caller's user JWT, including anonymous accounts,
 // and handles browser CORS automatically. Never expose supabaseAdmin in the app.
 import { withSupabase } from 'npm:@supabase/server@^1';
+import { readLeaderboard } from './read-leaderboard.js';
+import { readRunStatus, MAX_CLASSIC_RUN_MS } from './run-status.js';
 
-const MAX_TOP = 50;
 const SCORE_PER_DISTANCE_UNIT = 10;
 const RING_BONUS = 50;
-const MAX_RUN_SECONDS = 6 * 60 * 60;
+const MAX_RUN_SECONDS = MAX_CLASSIC_RUN_MS / 1000;
 const NICKNAME = /^[A-Za-z0-9_]{3,16}$/;
 const RUN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const invalid = (message: string, status = 400) =>
-  Response.json({ error: message }, { status });
+const invalid = (message: string, status = 400, code?: string) =>
+  Response.json({ error: message, ...(code ? { code } : {}) }, { status });
 
 function plausibleScore(score: unknown, distance: unknown, rings: unknown, elapsedSeconds: number) {
   if (!Number.isSafeInteger(score) || (score as number) < 1) return false;
@@ -42,59 +43,11 @@ export default {
 
     // Reads require a player session but do not allow direct table access.
     if (request.method === 'GET') {
-      const { data, error } = await ctx.supabaseAdmin
-        .from('best_scores')
-        .select('user_id, score, rings, country_code, achieved_at, player_profiles(nickname)')
-        .order('score', { ascending: false })
-        .order('achieved_at', { ascending: true })
-        .limit(MAX_TOP);
-      if (error) return invalid('Leaderboard is temporarily unavailable.', 503);
-
-      const entries = (data ?? []).map((item, index) => ({
-        rank: index + 1,
-        nickname: item.player_profiles?.nickname ?? 'Pilot',
-        countryCode: item.country_code ?? null,
-        score: item.score,
-        rings: item.rings,
-        achieved_at: item.achieved_at,
-      }));
-      const { data: mine, error: mineError } = await ctx.supabaseAdmin
-        .from('best_scores')
-        .select('run_id, score, rings, country_code')
-        .eq('user_id', playerId)
-        .maybeSingle();
-      if (mineError) return invalid('Your ranking is temporarily unavailable.', 503);
-
-      // The server's registered nickname is authoritative for returning players.
-      const { data: profile, error: profileError } = await ctx.supabaseAdmin
-        .from('player_profiles')
-        .select('nickname')
-        .eq('user_id', playerId)
-        .maybeSingle();
-      if (profileError) return invalid('Player profile is temporarily unavailable.', 503);
-
-      let ownRank: number | null = null;
-      if (mine) {
-        const { count, error: countError } = await ctx.supabaseAdmin
-          .from('best_scores')
-          .select('user_id', { count: 'exact', head: true })
-          .gt('score', mine.score);
-        if (countError) return invalid('Your ranking is temporarily unavailable.', 503);
-        ownRank = (count ?? 0) + 1;
+      try {
+        return Response.json(await readLeaderboard(ctx.supabaseAdmin, playerId));
+      } catch (error) {
+        return invalid(error.message, 503);
       }
-      return Response.json({
-        entries,
-        me: mine ? {
-          score: mine.score,
-          rings: mine.rings,
-          rank: ownRank,
-          nickname: profile?.nickname ?? null,
-          // This run ID is scoped to the authenticated player and is used only
-          // to backfill country for their own existing best score.
-          runId: mine.run_id,
-          countryCode: mine.country_code ?? null,
-        } : null,
-      });
     }
 
     if (request.method !== 'POST') return invalid('Method not allowed.', 405);
@@ -106,6 +59,17 @@ export default {
       body = parsed as Record<string, unknown>;
     } catch {
       return invalid('Invalid JSON.');
+    }
+
+    if (body.action === 'run-status') {
+      if (typeof body.runId !== 'string' || !RUN_ID.test(body.runId)) return invalid('Invalid run ID.');
+      try {
+        const result = await readRunStatus(ctx.supabaseAdmin, playerId, body.runId);
+        if (!result) return invalid('This run is unavailable.', 410, 'RUN_UNAVAILABLE');
+        return Response.json(result, { headers: { 'Cache-Control': 'no-store' } });
+      } catch {
+        return invalid('Could not check this run’s expiration.', 503);
+      }
     }
 
     if (body.action === 'backfill-country') {
@@ -199,6 +163,7 @@ export default {
       }
 
       const elapsedSeconds = (Date.now() - new Date(run.started_at).getTime()) / 1000;
+      if (elapsedSeconds > MAX_RUN_SECONDS) return invalid('This run has expired.', 410, 'RUN_EXPIRED');
       if (!plausibleScore(body.score, body.distance, body.rings, elapsedSeconds)) {
         return invalid('The run could not be validated.');
       }

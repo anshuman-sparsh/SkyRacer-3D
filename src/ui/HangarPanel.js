@@ -26,6 +26,7 @@ export class HangarPanel {
         this.aircraftPanel = document.querySelector('[data-hangar-panel-aircraft]');
         this.achievementsPanel = document.querySelector('[data-hangar-panel-achievements]');
         this.collection = document.querySelector('[data-hangar-collection]');
+        this.matchButton = document.querySelector('[data-hangar-match-appearance]');
         this.achievements = document.querySelector('[data-hangar-achievements]');
         this.defaultName = document.querySelector('[data-hangar-default-name]');
         this.abilityStatus = document.querySelector('[data-hangar-ability]');
@@ -44,6 +45,7 @@ export class HangarPanel {
             }
         };
         this.handleAircraft = () => this.setTab('aircraft');
+        this.handleMatch = () => this.matchAppearance();
         this.handleAchievements = () => this.setTab('achievements');
         this.handleTabKeys = event => {
             if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -57,6 +59,7 @@ export class HangarPanel {
         this.closeButton.addEventListener('click', this.handleClose);
         this.dialog.addEventListener('close', this.handleDialogClose);
         this.aircraftTab.addEventListener('click', this.handleAircraft);
+        this.matchButton.addEventListener('click', this.handleMatch);
         this.achievementsTab.addEventListener('click', this.handleAchievements);
         this.aircraftTab.addEventListener('keydown', this.handleTabKeys);
         this.achievementsTab.addEventListener('keydown', this.handleTabKeys);
@@ -73,6 +76,9 @@ export class HangarPanel {
     }
 
     refresh() {
+        const matching = this.selection.preference === 'match-theme';
+        this.matchButton.setAttribute('aria-pressed', String(matching));
+        this.matchButton.textContent = matching ? 'MATCH APPEARANCE · ON' : 'MATCH APPEARANCE';
         const equipped = this.selection.activeId;
         const equippedAircraft = HANGAR_AIRCRAFT.find(aircraft => aircraft.id === equipped);
         const chosen = HANGAR_AIRCRAFT.find(aircraft => aircraft.id === this.previewId) || equippedAircraft;
@@ -112,6 +118,13 @@ export class HangarPanel {
         if (!HANGAR_AIRCRAFT.some(a=>a.id===id))return;
         this.previewId=id;
         this.refresh();
+    }
+
+    matchAppearance() {
+        if (this.selection.choose('match-theme')) {
+            this.previewId = this.selection.activeId;
+            this.refresh();
+        }
     }
 
     open() {
@@ -282,6 +295,7 @@ export class HangarPanel {
         this.dialog.removeEventListener('close', this.handleDialogClose);
         this.viewer.dispose();
         this.aircraftTab.removeEventListener('click', this.handleAircraft);
+        this.matchButton.removeEventListener('click', this.handleMatch);
         this.achievementsTab.removeEventListener('click', this.handleAchievements);
         this.aircraftTab.removeEventListener('keydown', this.handleTabKeys);
         this.achievementsTab.removeEventListener('keydown', this.handleTabKeys);

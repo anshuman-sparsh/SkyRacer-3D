@@ -336,6 +336,7 @@ export class TrackManager {
 
         let x = 0;
         let y = 0;
+        let foundClearPosition = false;
         // Reject placements that overlap the segment's ring, so collecting a ring
         // never forces contact with a barrier.
         for (let attempt = 0; attempt < 6; attempt += 1) {
@@ -345,8 +346,15 @@ export class TrackManager {
             const clearOfRing = !ring
                 || Math.abs(ring.position.z - obstacleZ) > 6
                 || Math.hypot(ring.position.x - x, ring.position.y - y) > RING_RADIUS + 2.4;
-            if (clearOfRing) break;
+            if (clearOfRing) {
+                foundClearPosition = true;
+                break;
+            }
         }
+
+        // Never acquire a pooled barrier for a rejected placement. All six
+        // samples have already been consumed, preserving subsequent RNG state.
+        if (!foundClearPosition) return;
 
         const obstacle = this.#acquireObstacle();
         obstacle.position.set(x, y, obstacleZ);

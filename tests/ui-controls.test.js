@@ -30,7 +30,7 @@ test('quick navigation steals neither Space nor arrow keys from native controls'
         // actions even while global game input listeners are mounted.
         for (const attr of ['data-start-flight', 'data-restart']) {
             blockedDefault = false;
-            const button = { closest: (selector) => selector.includes('[' + attr + ']') ? {} : null };
+            const button = { closest: (selector) => selector.includes('button') ? {} : null };
             keydown({
                 code: 'Space', target: button,
                 preventDefault() { blockedDefault = true; },
@@ -122,5 +122,39 @@ test('typing flight-control letters in nickname and editable fields is never int
         input?.destroy();
         if (previousWindow === undefined) delete globalThis.window;
         else globalThis.window = previousWindow;
+    }
+});
+
+test('all native buttons and descendants retain Space; focus changes still release game keys', () => {
+    const oldWindow = globalThis.window;
+    const listeners = new Map();
+    const stub = { addEventListener: (key, fn) => listeners.set(key, fn), removeEventListener() {} };
+    globalThis.window = stub;
+    const boost = {};
+    const input = new InputManager(stub);
+    input.boostButton = boost;
+    try {
+        for (const selector of ['button', 'a[href]', 'summary', '[role="button"]', '[role="tab"]', 'dialog']) {
+            let prevented = false;
+            listeners.get('keydown')({ code: 'Space', target: {
+                closest: selectors => selectors.includes(selector) ? {} : null,
+            }, preventDefault() { prevented = true; } });
+            assert.equal(prevented, false, selector);
+            assert.equal(input.state.boost, false);
+        }
+        const canvas = { closest: () => null };
+        listeners.get('keydown')({ code: 'Space', target: canvas, preventDefault() {} });
+        assert.equal(input.state.boost, true);
+        listeners.get('keyup')({ code: 'Space', target: { closest: selector => selector.includes('input') ? {} : null },
+            preventDefault() { throw Error('Native control keyup canceled'); } });
+        assert.equal(input.state.boost, false);
+        listeners.get('keydown')({ code: 'Space', target: { closest: selector =>
+            selector === '[data-touch-boost]' ? boost : selector.includes('button') ? boost : null },
+            preventDefault() {} });
+        assert.equal(input.state.boost, true);
+    } finally {
+        input.boostButton = null;
+        input.destroy();
+        globalThis.window = oldWindow;
     }
 });

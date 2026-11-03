@@ -16,7 +16,7 @@ test('UTC course identity rolls over exactly at midnight, independent of device 
     assert.equal(utcChallengeDate(new Date('2026-10-29T23:59:59.999Z')), '2026-10-29');
     assert.equal(utcChallengeDate(new Date('2026-10-30T00:00:00.000Z')), '2026-10-30');
     assert.equal(nextUtcMidnight('2026-10-29'), Date.parse('2026-10-30T00:00:00Z'));
-    assert.equal(DAILY_COURSE_VERSION, 2);
+    assert.equal(DAILY_COURSE_VERSION, 3);
     assert.equal(isValidUtcDate('2026-02-29'), false);
     assert.equal(isValidUtcDate('2028-02-29'), true);
     assert.equal(isValidUtcDate('2026-13-01'), false);

@@ -875,3 +875,16 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
 .hangar-aircraft__equip:disabled { cursor:default; opacity:.8; }
 .hangar-aircraft__locked { position:absolute; right:12px; bottom:16px; color:var(--sr-muted); font:700 11px/1.3 var(--sr-font-body); }
 .hangar-aircraft__equip:focus-visible { outline:2px solid var(--sr-accent-bright); outline-offset:2px; }
+.hangar-match-appearance {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--sr-border, #597582);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sr-text, #effbff);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.hangar-match-appearance[aria-pressed="true"] { border-color: var(--sr-accent, #5ef0ff); }
+.hangar-match-appearance:focus-visible { outline: 2px solid var(--sr-accent, #5ef0ff); outline-offset: 3px; }

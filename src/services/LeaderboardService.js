@@ -11,7 +11,10 @@ async function asJson(response) {
     if (!response.ok) {
         const error = body?.error_description ?? body?.message ?? body?.error
             ?? 'The leaderboard is temporarily unavailable.';
-        throw new Error(typeof error === 'string' ? error : 'Leaderboard request failed.');
+        const failure = new Error(typeof error === 'string' ? error : 'Leaderboard request failed.');
+        failure.status = response.status;
+        failure.code = body?.error_code ?? body?.code ?? null;
+        throw failure;
     }
     return body;
 }
@@ -22,12 +25,14 @@ export class LeaderboardService {
         publishableKey = import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY,
         fetchImpl = (...args) => globalThis.fetch(...args),
         storage = null,
+        now = () => Date.now(),
     } = {}) {
         this.url = typeof url === 'string' ? url.trim().replace(/\/+$/, '') : '';
         this.key = typeof publishableKey === 'string' ? publishableKey.trim() : '';
         this.enabled = /^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(this.url)
             && this.key.length > 0 && typeof fetchImpl === 'function';
         this.fetchImpl = fetchImpl;
+        this.now = now;
         // Browsers can throw just from reading localStorage (privacy mode).
         // Keep the entire game usable even if persistent storage is blocked.
         if (storage !== null) {
@@ -96,8 +101,18 @@ export class LeaderboardService {
                     return await this.#auth('token?grant_type=refresh_token', {
                         refresh_token: this.session.refresh_token,
                     });
-                } catch {
-                    this.session = null;
+                } catch (cause) {
+                    // A failed refresh is not permission to replace a returning
+                    // player's identity, even when the token is no longer valid.
+                    const error = new Error(
+                        cause.status === 400 || cause.status === 401
+                            ? 'Your saved player session could not be restored. Your identity has been preserved; please retry or contact support.'
+                            : 'Could not refresh your player session. Your identity has been preserved; please retry when connected.',
+                        { cause },
+                    );
+                    error.status = cause.status ?? null;
+                    error.code = cause.code ?? 'SESSION_REFRESH_FAILED';
+                    throw error;
                 }
             }
             return this.#auth('signup', { data: {} });
@@ -223,6 +238,20 @@ export class LeaderboardService {
         return result.runId;
     }
 
+    async getRunStatus(runId) {
+        const requestedAt = this.now();
+        const result = await this.#request('POST', { action: 'run-status', runId });
+        const serverNow = Date.parse(result?.serverNow);
+        const serverExpiry = Date.parse(result?.expiresAt);
+        if (result?.runId !== runId || !Number.isFinite(serverNow) || !Number.isFinite(serverExpiry)) {
+            throw new Error('Could not verify this run’s expiration.');
+        }
+        // Correct for device clock skew. Anchor at request start so network
+        // delay cannot extend a run beyond the server's remaining lifetime.
+        return { expiresAt: requestedAt + serverExpiry - serverNow,
+            serverExpiresAt: result.expiresAt };
+    }
+
     async #getCountryProof(runId) {
         // Ask our same-origin Vercel Function to sign the player's IP-derived
         // country for this run. On localhost or unsupported networks the
@@ -281,8 +310,9 @@ export class LeaderboardService {
 
         // Always prefer the server's immutable registered nickname over an
         // outdated value in localStorage for this browser session.
-        if (typeof response?.me?.nickname === 'string') {
-            this.#save(NAME_KEY, response.me.nickname);
+        const registeredNickname = response?.profile?.nickname ?? response?.me?.nickname;
+        if (typeof registeredNickname === 'string') {
+            this.#save(NAME_KEY, registeredNickname);
         }
         return response;
     }

@@ -256,3 +256,90 @@ test('telemetry is completely skipped when Supabase is not configured', async ()
     });
     assert.equal(await service.sendGameplayEvent({ eventName: 'game_start' }), false);
 });
+
+test('all refresh failures preserve the original account and never sign up a replacement', async () => {
+    for (const failure of ['network', 'malformed', 400, 401, 429, 500, 503]) {
+        const store = storage();
+        const original = JSON.stringify({ access_token: 'old', refresh_token: 'original', expires_at: 1 });
+        store.setItem('skyracer_lb_session_v1', original);
+        const urls = [];
+        const service = new LeaderboardService({
+            url: 'https://game.supabase.co', publishableKey: 'public', storage: store,
+            fetchImpl: async url => {
+                urls.push(url);
+                assert.ok(url.includes('grant_type=refresh_token'));
+                if (failure === 'network') throw new TypeError('Connection failed');
+                if (failure === 'malformed') return json({});
+                return json({ error: 'Refresh unavailable', error_code: 'test_failure' }, failure);
+            },
+        });
+        await assert.rejects(service.getLeaderboard(), error => {
+            assert.match(error.message, /identity has been preserved/);
+            if (typeof failure === 'number') assert.equal(error.status, failure);
+            return true;
+        });
+        assert.equal(store.getItem('skyracer_lb_session_v1'), original);
+        assert.equal(service.session.refresh_token, 'original');
+        assert.equal(urls.length, 1);
+    }
+});
+
+test('concurrent refreshes share failure and a later retry restores the same session', async () => {
+    const store = storage();
+    store.setItem('skyracer_lb_session_v1', JSON.stringify({ access_token: 'old', refresh_token: 'original', expires_at: 1 }));
+    let rejectRefresh;
+    let refreshes = 0;
+    const service = new LeaderboardService({
+        url: 'https://game.supabase.co', publishableKey: 'public', storage: store,
+        fetchImpl: async url => {
+            if (url.includes('grant_type=refresh_token')) {
+                refreshes++;
+                if (refreshes === 1) return new Promise((_, reject) => { rejectRefresh = reject; });
+                return json({ access_token: 'restored-original', refresh_token: 'rotated-original', expires_in: 3600 });
+            }
+            assert.ok(!url.endsWith('/signup'));
+            return json({ entries: [], profile: { nickname: 'Registered' }, me: null });
+        },
+    });
+    const requests = Promise.allSettled([service.getLeaderboard(), service.getLeaderboard()]);
+    rejectRefresh(new Error('Temporary disconnect'));
+    const outcomes = await requests;
+    assert.ok(outcomes.every(outcome => outcome.status === 'rejected'));
+    assert.equal(refreshes, 1);
+    await service.getLeaderboard();
+    assert.equal(refreshes, 2);
+    assert.equal(service.getNickname(), 'Registered');
+});
+
+test('run expiry is based on server remaining time, even with a skewed device clock', async () => {
+    const runId = '12345678-1234-4234-8234-123456789abc';
+    const calls = [];
+    const service = new LeaderboardService({ url: 'https://game.supabase.co', publishableKey: 'public',
+        storage: storage(), now: () => 100000,
+        fetchImpl: async (url, init) => {
+            if (url.endsWith('/signup')) return json({ access_token: 'jwt', refresh_token: 'refresh', expires_in: 3600 });
+            const body = JSON.parse(init.body);
+            calls.push(body);
+            return json({ runId, serverNow: '2026-11-03T05:30:00Z', expiresAt: '2026-11-03T06:00:00Z' });
+        },
+    });
+    const status = await service.getRunStatus(runId);
+    assert.equal(status.expiresAt, 100000 + 30 * 60 * 1000);
+    assert.equal(status.serverExpiresAt, '2026-11-03T06:00:00Z');
+    assert.deepEqual(calls, [{ action: 'run-status', runId }]);
+});
+
+test('unavailable runs carry a terminal code, while temporary expiry lookup failures do not', async () => {
+    for (const [status, code] of [[410, 'RUN_UNAVAILABLE'], [503, null]]) {
+        const service = new LeaderboardService({ url: 'https://game.supabase.co', publishableKey: 'public', storage: storage(),
+            fetchImpl: async url => url.endsWith('/signup')
+                ? json({ access_token: 'jwt', refresh_token: 'refresh', expires_in: 3600 })
+                : json({ error: 'Cannot check run', ...(code ? { code } : {}) }, status),
+        });
+        await assert.rejects(service.getRunStatus('12345678-1234-4234-8234-123456789abc'), error => {
+            assert.equal(error.code, code);
+            assert.equal(error.status, status);
+            return true;
+        });
+    }
+});

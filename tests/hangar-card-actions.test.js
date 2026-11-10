@@ -32,10 +32,10 @@ test('cards preview on selection while separate Equip buttons change aircraft', 
     assert.doesNotMatch(src, /data-hangar-selected-state|data-hangar-theme-default/);
 });
 
-test('cards keep achievement requirements for locked aircraft only', () => {
+test('cards hide unlocked requirements but keep earnable aircraft progress visible', () => {
     const src = read('src/ui/HangarPanel.js');
-    assert.match(src, /requirement\.hidden = owned \|\| isStarter/);
-    assert.match(src, /progress\.hidden = owned \|\| isStarter/);
+    assert.match(src, /requirement\.hidden = owned && !isStarter/);
+    assert.match(src, /progress\.hidden = isStarter/);
     assert.match(src, /this\.selection\.setUnlocked\(data\.unlockedIds\)/);
     assert.match(src, /this\.renderProgress\(\)/);
     assert.match(read('src/styles/racing-ui.css'), /\.hangar-aircraft__equip/);

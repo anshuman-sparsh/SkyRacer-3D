@@ -34,6 +34,9 @@ import { TrackManager } from './managers/TrackManager.js';
 import { AudioEngine } from './utils/AudioEngine.js';
 import { disposeObject3D } from './utils/Memory.js';
 import { CollisionDebug } from './utils/CollisionDebug.js';
+import { FlightCoach, FlightMilestones } from './ui/FlightCoach.js';
+import { scoreComparison, nextHangarGoal } from './ui/ReplaySummary.js';
+import { createSafeStorage } from './platform/SafeStorage.js';
 
 inject();
 
@@ -137,6 +140,14 @@ const dailyOwnOverlay = document.querySelector('[data-daily-own-overlay]');
 const modeLabel = document.querySelector('[data-mode-label]');
 const touchIndicator = document.querySelector('[data-touch-indicator]');
 const touchIndicatorThumb = document.querySelector('[data-touch-indicator-thumb]');
+const coachElement = document.querySelector('[data-flight-coach]');
+const coachIcon = document.querySelector('[data-coach-icon]');
+const coachText = document.querySelector('[data-coach-text]');
+const milestoneElement = document.querySelector('[data-flight-milestone]');
+const replayComparison = document.querySelector('[data-replay-comparison]');
+const replayProgress = document.querySelector('[data-replay-progress]');
+const replayProgressText = document.querySelector('[data-replay-progress-text]');
+const replayProgressBar = document.querySelector('[data-replay-progress-bar]');
 
 const inputManager = new InputManager(window, {
     touchSurface: renderer.domElement,
@@ -164,6 +175,11 @@ let activeRunSeconds = 0;
 let startTransitionPending = false;
 let launchGeneration = 0;
 let appDisposed = false;
+let runBestBefore = null;
+let terminalAnimationSeconds = 0;
+let terminalFrameDirty = true;
+let lastCoachId = '';
+let lastMilestone = '';
 let wasBoosting = false;
 let resizeFrameId = 0;
 let hudElapsed = HUD_UPDATE_INTERVAL;
@@ -241,6 +257,7 @@ const hangarPanel = new HangarPanel({
     selection: aircraftSelection,
     loadProgress: () => leaderboard.getHangarProgress(),
     onNewUnlock: showHangarUnlock,
+    onProgress: updateReplayProgress,
     getTheme: () => themeController.theme,
     canOpen: () => gameState === 'start' && !startTransitionPending && !friendStartPending,
 });
@@ -278,6 +295,9 @@ leaderboardButton.hidden = !leaderboard.enabled && !localOnly;
 
 // Touch devices have no keyboard, so the prompts must name the gesture that works.
 const isTouchPrimary = usesTouchControls(window, navigator);
+const coachStorage = platformStorage ?? createSafeStorage({ prefix: 'skyracer_web_coach_v1:' });
+const flightCoach = new FlightCoach(coachStorage, isTouchPrimary, { experienced: classicScoreManager.getHighScore() > 0 });
+const flightMilestones = new FlightMilestones();
 document.documentElement.dataset.touchControls = String(isTouchPrimary);
 touchPauseButton.hidden = !isPoki || !isTouchPrimary;
 const removeScrollGuard = isPoki ? installScrollGuard(window) : () => {};
@@ -329,10 +349,55 @@ const STATE_COPY = {
         'FLIGHT PAUSED',
         isTouchPrimary ? 'Tap RESUME FLIGHT to continue.' : 'Press P or select RESUME FLIGHT to continue.',
     ],
-    terminated: ['FLIGHT ENDED', 'Navigation barrier contact. Ready for another run?'],
-    ringTimeout: ['FLIGHT ENDED', 'No ring collected within 30 seconds. Try another route.'],
-    blackRing: ['HAZARD RING HIT', 'Flight ended. You keep your earned score and rings — just like a barrier collision.'],
+    terminated: ['BARRIER HIT', 'Your score is safe. Steer around orange barriers on your next flight.'],
+    ringTimeout: ['RING TIMER RAN OUT', 'Collect a blue or pink ring within 30 seconds. Every collected ring resets the timer.'],
+    blackRing: ['HAZARD RING HIT', 'Avoid the red-orange X rings — they end your flight. All points and rings you\'ve already earned stay in your final score.'],
 };
+
+function updateReplayProgress() {
+    if (gameState !== 'terminated') return;
+    const goal = nextHangarGoal(localOnly ? localProgress.snapshot() : hangarPanel.progress, localOnly);
+    replayProgress.hidden = false;
+    replayProgressText.textContent = goal.text;
+    replayProgressBar.hidden = goal.ratio === null;
+    if (goal.ratio !== null) replayProgressBar.value = goal.ratio;
+}
+
+function setLaunchPending(pending) {
+    stateOverlay.setAttribute('aria-busy', String(pending));
+    startFlightButton.disabled = pending;
+    restartButton.disabled = pending;
+    restartButton.textContent = pending ? 'PREPARING FLIGHT…' : 'FLY AGAIN';
+    startFlightButton.textContent = pending ? 'PREPARING FLIGHT…'
+        : gameState === 'paused' ? 'RESUME FLIGHT' : 'START FLIGHT';
+}
+
+function updateFlightExperience(delta) {
+    const input = inputManager.state;
+    const warning = ringCollectionDeadline.countdownSeconds !== null;
+    const hint = warning ? null : flightCoach.advance(delta, {
+        steering: input.moveLeft || input.moveRight || input.moveUp || input.moveDown
+            || Math.abs(input.steer) > .1 || Math.abs(input.pitch) > .1,
+        boosting: input.boost, rings: scoreManager.ringsCollected,
+        hazardNear: !flightCoach.completed && trackManager.blackRings.some(ring => {
+            const ahead = hovercraft.position.z - ring.position.z;
+            return ahead > 0 && ahead < 45 && Math.abs(ring.position.x - hovercraft.position.x) < 7;
+        }),
+    });
+    const id = warning ? '' : hint?.id ?? '';
+    if (id !== lastCoachId) {
+        coachElement.hidden = !id;
+        if (id) { coachIcon.textContent = hint.icon; coachText.textContent = hint.text; }
+        lastCoachId = id;
+    }
+    const message = flightMilestones.advance(delta, scoreManager.ringsCollected, scoreManager.currentScore);
+    const visible = warning ? '' : message;
+    if (visible !== lastMilestone) {
+        milestoneElement.hidden = !visible;
+        milestoneElement.textContent = visible;
+        lastMilestone = visible;
+    }
+}
 
 function updateRingDeadlineDisplay() {
     const remaining = gameState === 'running' ? ringCollectionDeadline.countdownSeconds : null;
@@ -354,6 +419,12 @@ function updateRingDeadlineDisplay() {
 function setGameState(nextState, terminationReason = 'collision') {
     const wasTerminated = gameState === 'terminated';
     gameState = nextState;
+    if (nextState !== 'running') {
+        coachElement.hidden = true; milestoneElement.hidden = true;
+        lastCoachId = ''; lastMilestone = '';
+    }
+    replayComparison.hidden = nextState !== 'terminated';
+    replayProgress.hidden = nextState !== 'terminated';
     platform.transition(nextState);
     if (localOnly && nextState === 'terminated' && !wasTerminated) {
         localProgress.recordFlight({ rings: scoreManager.ringsCollected, distance: scoreManager.distance });
@@ -406,11 +477,15 @@ function setGameState(nextState, terminationReason = 'collision') {
     touchPauseButton.textContent = nextState === 'paused' ? 'RESUME' : 'PAUSE';
 
     if (isTerminated) {
+        if (!wasTerminated) terminalAnimationSeconds = 0;
         // Flush immediately so a browser close on the results screen keeps both records.
         scoreManager.persistRecords();
         finalScoreElement.textContent = scoreManager.currentScore.toLocaleString();
         finalRingsElement.textContent = scoreManager.ringsCollected.toString();
         finalDistanceElement.textContent = scoreManager.distance.toFixed(1);
+        replayComparison.textContent = scoreComparison(scoreManager.currentScore, runBestBefore, gameMode, localOnly);
+        replayComparison.classList.toggle('is-record', runBestBefore != null && scoreManager.currentScore > runBestBefore);
+        updateReplayProgress();
         restartButton.focus();
     }
 
@@ -522,12 +597,10 @@ function updateModeDisplays() {
                     : 'Daily best: waiting for your first successful submission');
         if (gameState === 'start') stateTitle.textContent = 'DAILY CHALLENGE — READY';
         if (gameState === 'paused') stateTitle.textContent = 'DAILY CHALLENGE PAUSED';
-        if (gameState === 'terminated') stateTitle.textContent = 'DAILY RUN ENDED';
     }
     if (friend) {
         if (gameState === 'start') stateTitle.textContent = 'FRIEND CHALLENGE — READY';
         if (gameState === 'paused') stateTitle.textContent = 'FRIEND CHALLENGE PAUSED';
-        if (gameState === 'terminated') stateTitle.textContent = 'FRIEND RUN ENDED';
     }
     dailyPanel.updateActions();
     friendPanel.updateActions();
@@ -664,6 +737,7 @@ async function startRunning() {
         || (dailyPanel.dialog.open && gameMode !== 'daily')
         || (friendPanel.dialog.open && gameMode !== 'friend')) return false;
     startTransitionPending = true;
+    setLaunchPending(true);
     const generation = launchGeneration;
     const startingState = gameState;
     const startingMode = gameMode;
@@ -679,11 +753,15 @@ async function startRunning() {
             audioEngine.setPaused(true);
             return false;
         }
+        await audioPromise;
+        if (!stillValid()) { audioEngine.setPaused(true); return false; }
         if (isNewRun && gameMode === 'friend') {
             if (!activeFriendRun?.runId) throw new Error('Friend attempt was not registered.');
         } else if (isNewRun && gameMode === 'daily') {
-            if (!activeDailyRun || activeDailyRun.submitted) {
-                activeDailyRun = await dailyService.begin();
+            if (startingState === 'terminated' || !activeDailyRun || activeDailyRun.submitted) {
+                const registered = await dailyService.begin();
+                if (!stillValid()) { audioEngine.setPaused(true); return false; }
+                activeDailyRun = registered;
             }
             // An old open leaderboard can straddle midnight; trust the
             // server-issued date, never yesterday's cached personal best.
@@ -697,12 +775,25 @@ async function startRunning() {
             cameraDynamics.snapTo(hovercraft);
             dailyLastError = '';
             updateHud();
-        } else if (gameState === 'start' && gameMode === 'classic') {
+        } else if (isNewRun && gameMode === 'classic') {
+            if (startingState === 'terminated') {
+                ringGuidance.hide();
+                scoreManager.reset();
+                ringCollectionDeadline.reset();
+                hovercraft.reset();
+                trackManager.reset({ random: Math.random });
+                cameraDynamics.snapTo(hovercraft);
+                wasBoosting = false;
+                updateHud();
+            }
             beginOnlineRun();
         }
-        await audioPromise;
-        if (!stillValid()) { audioEngine.setPaused(true); return false; }
         if (isNewRun) {
+            wasBoosting = false;
+            runBestBefore = gameMode === 'classic' ? scoreManager.getHighScore()
+                : gameMode === 'daily' ? dailyPersonalBest : null;
+            flightCoach.beginFlight();
+            flightMilestones.beginFlight(runBestBefore);
             activeFlightAircraftId = aircraftSelection.activeId;
             activeFlightAbility = eliteAbilityFor(activeFlightAircraftId, aircraftSelection.ownedIds);
             hovercraft.setAppearance(activeFlightAircraftId);
@@ -731,6 +822,7 @@ async function startRunning() {
         return false;
     } finally {
         startTransitionPending = false;
+        setLaunchPending(false);
     }
 }
 
@@ -745,29 +837,12 @@ function togglePause() {
 /** Rebuilds the run in place, keeping every GPU resource and the audio context. */
 function restartRun() {
     if (startTransitionPending || gameState !== 'terminated') return;
-    ringGuidance.hide();
-    scoreManager.reset();
-    ringCollectionDeadline.reset();
-    updateRingDeadlineDisplay();
-    hovercraft.reset();
-    hovercraft.setAppearance(aircraftSelection.activeId);
     if (gameMode === 'friend') {
         activeFriendRun = null;
         friendPanel.status.textContent = 'Use the original challenge link to start a new attempt.';
         returnToClassic();
         return;
     }
-    if (gameMode === 'daily') {
-        activeDailyRun = null;
-        dailyLastError = '';
-        trackManager.reset({ random: Math.random }); // Seeded reset occurs once the server registers the retry.
-    } else {
-        trackManager.reset({ random: Math.random });
-        beginOnlineRun();
-    }
-    cameraDynamics.snapTo(hovercraft);
-    wasBoosting = false;
-    updateHud();
     void startRunning();
 }
 
@@ -1047,6 +1122,15 @@ function animate(time = 0) {
         }
         lastIdleFrameAt = time;
     }
+    // The crash reads within two seconds; do not spin/render it forever.
+    if (gameState === 'terminated') {
+        terminalAnimationSeconds += delta;
+        if (terminalAnimationSeconds > 2) {
+            if (terminalFrameDirty) { renderer.render(scene, camera); terminalFrameDirty = false; }
+            animationFrameId = requestAnimationFrame(animate);
+            return;
+        }
+    }
     inputManager.update(delta);
 
     if (gameState === 'running' || gameState === 'terminated') {
@@ -1092,10 +1176,9 @@ function animate(time = 0) {
                 audioEngine.playRingChime();
             }
             updateHud();
-            ringsElement.classList.remove('is-collected');
-            // Restart the short cue if two rings arrive close together.
-            void ringsElement.offsetWidth;
-            ringsElement.classList.add('is-collected');
+            // Alternate animation names; no synchronous layout read per pickup.
+            ringsElement.classList.toggle('is-collected');
+            ringsElement.classList.toggle('is-collected-alt', !ringsElement.classList.contains('is-collected'));
         }
 
         // Barrier/black-ring impacts or 30 seconds without a collected ring
@@ -1146,6 +1229,7 @@ function animate(time = 0) {
         wasBoosting = false;
     }
 
+    if (gameState === 'running') updateFlightExperience(frameDelta);
     // Smooth shared-material accents only; physics, rings and speed particles
     // retain their existing behavior and visibility.
     updateTrackLightResponse(delta, gameState === 'running' && (
@@ -1155,6 +1239,7 @@ function animate(time = 0) {
     ));
     collisionDebug?.update();
     renderer.render(scene, camera);
+    terminalFrameDirty = false;
     animationFrameId = requestAnimationFrame(animate);
 }
 
@@ -1165,6 +1250,7 @@ function resizeViewport() {
     cameraDynamics.resize(width / height, hovercraft);
     resizeRenderer(renderer, container);
     hangarPanel.viewer.resize();
+    terminalFrameDirty = true;
 }
 
 /** Coalesces mobile URL-bar and orientation resize bursts into one frame. */

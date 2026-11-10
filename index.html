@@ -66,6 +66,7 @@
     .rings-panel { min-width: 68px; padding: clamp(6px, .9vh, 9px) clamp(8px, 1vw, 12px); text-align: center; }
     .rings-panel__value { display: block; margin-top: 3px; color: var(--magenta); font-size: clamp(15px, 1.9vw, 21px); font-weight: 800; line-height: 1; text-shadow: 0 0 14px rgba(255, 63, 164, .55); }
     .rings-panel__value.is-collected { animation: ring-confirm 380ms ease-out; }
+    .rings-panel__value.is-collected-alt { animation: ring-confirm-alt 380ms ease-out; }
     .rings-panel__best { display: flex; justify-content: center; gap: 4px; margin-top: 4px; color: #a99fd0; font-size: clamp(7px, .8vw, 8px); font-weight: 700; text-transform: uppercase; }
     .rings-panel__best strong { color: var(--neon); }
     .rings-panel__best.is-record strong { color: var(--magenta); text-shadow: 0 0 10px rgba(255, 63, 164, .7); }
@@ -262,6 +263,10 @@
     <button class="touch-boost" type="button" data-touch-boost>BOOST</button>
   </div>
   <div class="touch-indicator" data-touch-indicator aria-hidden="true"><span class="touch-indicator__thumb" data-touch-indicator-thumb></span></div>
+  <div class="flight-coach" data-flight-coach role="status" aria-live="polite" hidden>
+    <strong data-coach-icon></strong><span data-coach-text></span>
+  </div>
+  <p class="flight-milestone" data-flight-milestone role="status" aria-live="polite" hidden></p>
   <button class="poki-touch-pause" type="button" data-touch-pause hidden>PAUSE</button>
   <div class="state-overlay" data-state-overlay>
     <div class="state-overlay__content glass-panel">
@@ -277,6 +282,12 @@
         <li><span>Rings</span><strong data-final-rings>0</strong></li>
         <li><span>Distance</span><strong data-final-distance>0.0</strong></li>
       </ul>
+      <p class="replay-comparison" data-replay-comparison hidden></p>
+      <button class="state-overlay__action is-primary replay-primary" type="button" data-restart hidden>FLY AGAIN</button>
+      <div class="replay-progress" data-replay-progress hidden>
+        <span data-replay-progress-text></span>
+        <progress data-replay-progress-bar max="1" value="0" aria-label="Progress toward next aircraft" hidden></progress>
+      </div>
       <div class="state-overlay__records">
         <p class="state-overlay__best" data-overlay-best>Best Score <strong data-overlay-best-value>0</strong></p>
         <p class="state-overlay__best" data-overlay-best-rings>Best Rings <strong data-overlay-best-rings-value>0</strong></p>
@@ -300,7 +311,6 @@
       </div>
       <div class="state-overlay__actions">
         <button class="state-overlay__action is-primary" type="button" data-start-flight>START FLIGHT</button>
-        <button class="state-overlay__action is-primary" type="button" data-restart hidden>FLY AGAIN</button>
         <button class="state-overlay__action" type="button" data-exit-menu hidden>BACK TO MENU</button>
         <button class="state-overlay__action" type="button" data-submit-score hidden>SUBMIT SCORE</button>
         <button class="state-overlay__action" type="button" data-daily-submit hidden>SUBMIT DAILY SCORE</button>

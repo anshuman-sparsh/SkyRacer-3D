@@ -6,7 +6,8 @@ import { HangarPreview } from '../hangar/HangarPreview.js';
  * Both free starters are equipable; advanced aircraft remain locked until M5-C.
  */
 export class HangarPanel {
-    constructor({ getTheme, canOpen, selection, loadProgress = null, local = false, onNewUnlock = () => {} }) {
+    constructor({ getTheme, canOpen, selection, loadProgress = null, local = false, onNewUnlock = () => {}, onProgress = () => {} }) {
+        this.onProgress = onProgress;
         this.local = local;
         this.onNewUnlock=onNewUnlock;
         this.loadProgress=loadProgress;
@@ -160,6 +161,7 @@ export class HangarPanel {
                 +' · Distance: '+Math.floor(data.totalDistance).toLocaleString();
             this.refresh();
             this.renderProgress();
+            this.onProgress(data);
         } catch(error) {
             this.status.textContent='Progress unavailable: '+error.message
                 +(this.local ? '. This session can still fly with the free aircraft.' : '. Unverified rewards stay locked.');

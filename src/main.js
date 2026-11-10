@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import { inject } from '@vercel/analytics';
+import { isPoki, localOnly, platform, storage as platformStorage } from '#platform';
+import { inject, LeaderboardService, ClassicAutoSubmit, DailyChallengeService,
+    FriendChallengeService, GameplayAnalyticsService, localProgress } from '#game-services';
+import { usesTouchControls, installScrollGuard } from './platform/DeviceSupport.js';
 import { CameraDynamics, createCamera } from './core/Camera.js';
 import { createRenderer, resizeRenderer } from './core/Renderer.js';
 import { createScene } from './core/Scene.js';
@@ -16,12 +19,8 @@ import {
 import { InputManager } from './managers/InputManager.js';
 import { ScoreManager } from './managers/ScoreManager.js';
 import { RingCollectionDeadline } from './managers/RingCollectionDeadline.js';
-import { LeaderboardService } from './services/LeaderboardService.js';
-import { ClassicAutoSubmit } from './services/ClassicAutoSubmit.js';
-import { DailyChallengeService } from './services/DailyChallengeService.js';
 import { DailyChallengePanel } from './ui/DailyChallengePanel.js';
-import { FriendChallengePanel } from './ui/FriendChallengePanel.js';
-import { FriendChallengeService } from './services/FriendChallengeService.js';
+import { FriendChallengePanel } from '#friend-panel';
 import { ThemeController } from './ui/ThemeController.js';
 import { HangarPanel } from './ui/HangarPanel.js';
 import { AircraftSelection } from './hangar/AircraftSelection.js';
@@ -30,7 +29,6 @@ import { HANGAR_AIRCRAFT } from './hangar/HangarCatalog.js';
 import { QuickMenu } from './ui/QuickMenu.js';
 import { shouldToggleFlightPause } from './ui/FlightKeyPolicy.js';
 import { createDailyRandom } from './utils/DailyChallenge.js';
-import { GameplayAnalyticsService } from './services/GameplayAnalyticsService.js';
 import { formatLeaderboardName } from './utils/LeaderboardDisplay.js';
 import { TrackManager } from './managers/TrackManager.js';
 import { AudioEngine } from './utils/AudioEngine.js';
@@ -45,7 +43,7 @@ const SPEEDOMETER_MAX_KMH = 180;
 const HUD_UPDATE_INTERVAL = 1 / 20;
 // Preserve the full skyline on desktop while reducing decorative work on touch
 // devices and narrow viewports; gameplay objects are never affected.
-const reducedScenery = window.matchMedia('(pointer: coarse)').matches
+const reducedScenery = usesTouchControls(window, navigator)
     || Math.min(window.innerWidth, window.innerHeight) < 600;
 
 const container = document.querySelector('#app');
@@ -62,10 +60,10 @@ const trackManager = new TrackManager(scene, {
 });
 const ringGuidance = new RingGuidance();
 // Opt-in diagnostic only: append ?debugHitboxes=1 to a local game URL.
-const collisionDebug = new URLSearchParams(window.location.search).get('debugHitboxes') === '1'
+const collisionDebug = !isPoki && new URLSearchParams(window.location.search).get('debugHitboxes') === '1'
     ? new CollisionDebug(scene, hovercraft, trackManager)
     : null;
-const classicScoreManager = new ScoreManager();
+const classicScoreManager = new ScoreManager({ storage: platformStorage });
 const dailyScoreManager = new ScoreManager({ recordsEnabled: false });
 let scoreManager = classicScoreManager;
 const ringCollectionDeadline = new RingCollectionDeadline();
@@ -117,6 +115,7 @@ const audioButton = document.querySelector('[data-audio-toggle]');
 const pauseButton = document.querySelector('[data-pause-toggle]');
 const pauseLabel = document.querySelector('[data-pause-label]');
 const touchBoostButton = document.querySelector('[data-touch-boost]');
+const touchPauseButton = document.querySelector('[data-touch-pause]');
 const helpButton = document.querySelector('[data-help-open]');
 const helpDialog = document.querySelector('[data-help-dialog]');
 const helpCloseButton = document.querySelector('[data-help-close]');
@@ -147,6 +146,7 @@ const inputManager = new InputManager(window, {
 });
 
 let animationFrameId = 0;
+let lastIdleFrameAt = -Infinity;
 let gameState = 'start';
 let gameMode = 'classic';
 // One server-authorized equipment snapshot per flight; resumes never swap abilities.
@@ -162,6 +162,8 @@ let dailyPersonalBest = null;
 let dailyLastError = '';
 let activeRunSeconds = 0;
 let startTransitionPending = false;
+let launchGeneration = 0;
+let appDisposed = false;
 let wasBoosting = false;
 let resizeFrameId = 0;
 let hudElapsed = HUD_UPDATE_INTERVAL;
@@ -203,13 +205,13 @@ const dailyPanel = new DailyChallengePanel({
     service: dailyService,
     onPlay: launchDailyChallenge,
     onSubmit: submitDailyScore,
-    onOpen: () => { if (gameState === 'running') setGameState('paused'); },
+    onOpen: pauseForMenu,
     canPlay: () => !startTransitionPending && (gameState === 'start' || gameState === 'terminated'),
-    canSubmit: () => gameMode === 'daily' && gameState === 'terminated'
+    canSubmit: () => !localOnly && gameMode === 'daily' && gameState === 'terminated'
         && scoreManager.currentScore > 0 && Boolean(activeDailyRun) && !activeDailyRun.submitted
         && !dailySubmitting,
 });
-const themeController = new ThemeController();
+const themeController = new ThemeController({ storage: platformStorage });
 const hangarUnlock = document.querySelector('[data-hangar-unlock]');
 const hangarUnlockName = document.querySelector('[data-hangar-unlock-name]');
 const hangarUnlockOpen = document.querySelector('[data-hangar-unlock-open]');
@@ -226,7 +228,7 @@ function openNewHangarUnlock() {
     hangarPanel.open();
 }
 const aircraftSelection = new AircraftSelection({
-    storage: (() => { try { return window.localStorage; } catch { return null; } })(),
+    storage: platformStorage ?? (() => { try { return window.localStorage; } catch { return null; } })(),
     theme: themeController.theme,
     onChange: id => {
         // Changing the interface theme during a paused/running flight cannot
@@ -235,6 +237,7 @@ const aircraftSelection = new AircraftSelection({
     },
 });
 const hangarPanel = new HangarPanel({
+    local: localOnly,
     selection: aircraftSelection,
     loadProgress: () => leaderboard.getHangarProgress(),
     onNewUnlock: showHangarUnlock,
@@ -248,7 +251,7 @@ const handleHangarThemeChange = () => {
 themeController.button?.addEventListener('click', handleHangarThemeChange);
 const friendPanel = new FriendChallengePanel({
     service: friendService,
-    onOpen: () => { if (gameState === 'running') setGameState('paused'); },
+    onOpen: pauseForMenu,
     getResult: () => gameMode === 'classic' && gameState === 'terminated' && onlineRunPromise
         ? { score: scoreManager.currentScore, rings: scoreManager.ringsCollected,
             distance: scoreManager.distance, runIdPromise: onlineRunPromise }
@@ -260,7 +263,7 @@ const friendPanel = new FriendChallengePanel({
 });
 const quickMenu = new QuickMenu({
     onOpen: () => {
-        if (gameState === 'running') setGameState('paused');
+        pauseForMenu();
     },
     onHelp: openHelp,
     getAudioEnabled: () => !audioEngine.muted,
@@ -268,20 +271,61 @@ const quickMenu = new QuickMenu({
     onLeaderboard: () => openLeaderboard({ currentTarget: quickMenu.trigger }),
     onDaily: () => dailyPanel.open({ currentTarget: quickMenu.trigger }),
     onFriend: () => friendPanel.open({ currentTarget: quickMenu.trigger }),
-    canLeaderboard: () => leaderboard.enabled,
+    canLeaderboard: () => leaderboard.enabled || localOnly,
     canDaily: () => dailyService.enabled,
 });
-leaderboardButton.hidden = !leaderboard.enabled;
+leaderboardButton.hidden = !leaderboard.enabled && !localOnly;
 
 // Touch devices have no keyboard, so the prompts must name the gesture that works.
-const isTouchPrimary = window.matchMedia('(pointer: coarse)').matches;
+const isTouchPrimary = usesTouchControls(window, navigator);
+document.documentElement.dataset.touchControls = String(isTouchPrimary);
+touchPauseButton.hidden = !isPoki || !isTouchPrimary;
+const removeScrollGuard = isPoki ? installScrollGuard(window) : () => {};
+// SDK-owned ad overlays remain outside this game-owned interaction boundary.
+const gameUi = isPoki ? [document.querySelector('[data-game-ui]')] : [];
+platform.onBlocked = blocked => {
+    inputManager.setEnabled(!blocked);
+    audioEngine.setAdMuted(blocked);
+    for (const element of gameUi) element.inert = blocked;
+};
+if (isPoki) {
+    document.querySelector('[data-quick-friend]').hidden = true;
+    document.querySelector('[data-friend-dialog]').hidden = true;
+    const policyUrl = __POKI_PRIVACY_URL__;
+    if (policyUrl) {
+        const privacy = document.createElement('button');
+        privacy.type = 'button'; privacy.textContent = 'Privacy policy';
+        privacy.addEventListener('click', () => {
+            pauseForMenu();
+            try { platform.sdk?.openExternalLink(policyUrl); } catch { /* No direct-navigation fallback. */ }
+        });
+        quickMenu.menu.append(privacy);
+    }
+    if (localOnly) {
+        document.querySelector('[data-quick-leaderboard]').textContent = 'Local records';
+        document.querySelector('#leaderboard-title').textContent = 'LOCAL RECORDS';
+        document.querySelector('[data-quick-daily]').textContent = 'Local Daily challenge';
+        document.querySelector('[data-daily-open]').textContent = 'LOCAL DAILY';
+        document.querySelector('[data-daily-menu]').textContent = 'LOCAL DAILY CHALLENGE';
+        document.querySelector('[data-classic-auto-panel]').hidden = true;
+        document.querySelector('[data-hangar-panel-achievements] .hangar-shell__section-note').textContent =
+            'Local milestones advance after completed Classic or Daily flights on this device. They are not server-verified and never enter web leaderboards.';
+        document.querySelector('.hangar-shell__footer').textContent =
+            'Local aircraft unlocks stay in this edition. Apex Overdrive requires online Friend wins and is unavailable here. Equipped abilities keep their existing flight behavior.';
+        document.querySelector('[data-hangar-progress-status]').textContent = 'Checking local achievement progress…';
+        const dailyHelp = [...document.querySelectorAll('.help-dialog__section')]
+            .find(section => section.querySelector('h3')?.textContent.startsWith('Daily Challenge'));
+        if (dailyHelp) dailyHelp.querySelector('p').textContent =
+            'Local Daily uses your device’s UTC date and a versioned seeded course. Scores stay on this device; there are no global ranks or server verification.';
+    }
+}
 
 const STATE_COPY = {
     start: [
         'READY FOR TAKEOFF',
         isTouchPrimary
-            ? 'Drag to steer. Hold BOOST to surge. Collect a ring every 30 seconds.'
-            : 'WASD / arrows to steer · Space / Shift to boost · Collect a ring every 30 seconds.',
+            ? 'Drag to steer and climb. Hold BOOST. Fly through blue / pink rings; avoid black rings. Collect a ring every 30 seconds.'
+            : 'WASD / arrows to steer · Space / Shift to boost · Fly through blue / pink rings; avoid black rings. Collect a ring every 30 seconds.',
     ],
     paused: [
         'FLIGHT PAUSED',
@@ -312,6 +356,12 @@ function updateRingDeadlineDisplay() {
 function setGameState(nextState, terminationReason = 'collision') {
     const wasTerminated = gameState === 'terminated';
     gameState = nextState;
+    platform.transition(nextState);
+    if (localOnly && nextState === 'terminated' && !wasTerminated) {
+        localProgress.recordFlight({ rings: scoreManager.ringsCollected, distance: scoreManager.distance });
+        updateStorageNotice();
+        void hangarPanel.refreshProgress();
+    }
     if (nextState === 'terminated' && !wasTerminated) {
         analytics.trackRunEnd({
             mode: gameMode,
@@ -354,6 +404,8 @@ function setGameState(nextState, terminationReason = 'collision') {
     pauseButton.setAttribute('aria-pressed', (nextState === 'paused').toString());
     pauseButton.classList.toggle('is-off', nextState === 'paused');
     pauseButton.disabled = isTerminated;
+    touchPauseButton.disabled = isTerminated || isStart;
+    touchPauseButton.textContent = nextState === 'paused' ? 'RESUME' : 'PAUSE';
 
     if (isTerminated) {
         // Flush immediately so a browser close on the results screen keeps both records.
@@ -454,6 +506,7 @@ function updateModeDisplays() {
 
     const canShowOptions = gameState === 'start' || gameState === 'terminated';
     const canSubmit = daily && gameState === 'terminated'
+        && !localOnly
         && scoreManager.currentScore > 0 && Boolean(activeDailyRun)
         && !activeDailyRun.submitted && !dailySubmitting;
     dailySubmitButton.hidden = !canSubmit;
@@ -461,12 +514,14 @@ function updateModeDisplays() {
     dailyPanel.openButtons[1].hidden = !dailyService.enabled || daily || !canShowOptions;
     dailyOwnOverlay.hidden = !daily;
     if (daily) {
+        if (localOnly) modeLabel.textContent = 'LOCAL DAILY // ' + (activeDailyRun?.date ?? 'UTC');
         dailyOwnOverlay.textContent = dailyLastError
             ? dailyLastError
             : (dailyPersonalBest != null
                 ? 'Challenge ' + (activeDailyRun?.date ?? dailyPanel.today?.date ?? 'UTC')
                     + ' best: ' + Number(dailyPersonalBest).toLocaleString()
-                : 'Daily best: waiting for your first successful submission');
+                : localOnly ? 'Local Daily best: finish your first flight'
+                    : 'Daily best: waiting for your first successful submission');
         if (gameState === 'start') stateTitle.textContent = 'DAILY CHALLENGE — READY';
         if (gameState === 'paused') stateTitle.textContent = 'DAILY CHALLENGE PAUSED';
         if (gameState === 'terminated') stateTitle.textContent = 'DAILY RUN ENDED';
@@ -605,13 +660,27 @@ function beginOnlineRun() {
 
 async function startRunning() {
     // Ignore duplicate clicks and key presses during async run registration.
-    if (startTransitionPending || gameState === 'running'
+    if (startTransitionPending || platform.blocked || appDisposed || document.hidden || gameState === 'running'
         || (friendStartPending && gameMode !== 'friend')) return false;
+    if (helpDialog.open || leaderboardDialog.open || hangarPanel.dialog.open || quickMenu.opened
+        || (dailyPanel.dialog.open && gameMode !== 'daily')
+        || (friendPanel.dialog.open && gameMode !== 'friend')) return false;
     startTransitionPending = true;
+    const generation = launchGeneration;
+    const startingState = gameState;
+    const startingMode = gameMode;
+    const stillValid = () => !appDisposed && !document.hidden && generation === launchGeneration
+        && gameState === startingState && gameMode === startingMode;
     const isNewRun = gameState === 'start' || gameState === 'terminated';
+    let audioPromise = Promise.resolve(false);
     try {
         // Start audio while still handling the user's gesture on mobile.
-        const audioPromise = audioEngine.start();
+        audioPromise = audioEngine.start({ paused: isPoki }).catch(() => false);
+        if (isPoki && !await platform.beforeGameplay(stillValid)) {
+            await audioPromise;
+            audioEngine.setPaused(true);
+            return false;
+        }
         if (isNewRun && gameMode === 'friend') {
             if (!activeFriendRun?.runId) throw new Error('Friend attempt was not registered.');
         } else if (isNewRun && gameMode === 'daily') {
@@ -634,6 +703,7 @@ async function startRunning() {
             beginOnlineRun();
         }
         await audioPromise;
+        if (!stillValid()) { audioEngine.setPaused(true); return false; }
         if (isNewRun) {
             activeFlightAircraftId = aircraftSelection.activeId;
             activeFlightAbility = eliteAbilityFor(activeFlightAircraftId, aircraftSelection.ownedIds);
@@ -655,6 +725,8 @@ async function startRunning() {
         }
         return true;
     } catch (error) {
+        await audioPromise;
+        audioEngine.setPaused(true);
         dailyLastError = error.message;
         updateModeDisplays();
         console.error('[SkyRacer] Could not start the run:', error);
@@ -702,6 +774,8 @@ function restartRun() {
 }
 
 function handleGameKey(event) {
+    if (platform.blocked || event.isComposing || event.target?.isContentEditable
+        || event.target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
     // A new flight or retry starts exclusively from START FLIGHT or FLY AGAIN,
     // not arbitrary keys, arrow movement or taps on the overlay.
     if (helpDialog.open || leaderboardDialog.open || dailyPanel.dialog.open || friendPanel.dialog.open || hangarPanel.dialog.open || quickMenu.opened) return;
@@ -712,7 +786,7 @@ function openHelp() {
     if (helpDialog.open) return;
     // Never let the aircraft keep moving behind instructional content.
     // Closing the guide leaves the run paused until the player resumes.
-    if (gameState === 'running') setGameState('paused');
+    pauseForMenu();
     helpDialog.showModal();
     helpCloseButton.focus();
 }
@@ -726,9 +800,9 @@ function restoreHelpFocus() {
 }
 
 function openLeaderboard(event) {
-    if (!leaderboard.enabled || leaderboardDialog.open) return;
+    if ((!leaderboard.enabled && !localOnly) || leaderboardDialog.open) return;
     leaderboardReturnFocus = event?.currentTarget ?? leaderboardButton;
-    if (gameState === 'running') setGameState('paused');
+    pauseForMenu();
     leaderboardForm.hidden = true;
     leaderboardNickname.value = leaderboard.getNickname();
     leaderboardNickname.readOnly = false;
@@ -747,6 +821,14 @@ function restoreLeaderboardFocus() {
 }
 
 async function refreshLeaderboard() {
+    if (localOnly && leaderboardDialog.open) {
+        leaderboardForm.hidden = true;
+        leaderboardList.replaceChildren();
+        leaderboardOwn.textContent = 'This device · Best score: ' + classicScoreManager.getHighScore().toLocaleString()
+            + ' · Best rings: ' + classicScoreManager.getBestRings().toLocaleString();
+        leaderboardStatus.textContent = 'Local Classic records only. No global rank or online submission.';
+        return;
+    }
     if (!leaderboard.enabled || !leaderboardDialog.open) return;
     leaderboardRefreshButton.disabled = true;
     leaderboardStatus.textContent = 'Loading global rankings…';
@@ -951,11 +1033,22 @@ function updateHud() {
     updateRecordDisplays(scoreManager.isNewHighScore, scoreManager.isNewBestRings);
 }
 
-function animate() {
+function animate(time = 0) {
     // Physics remains frame-capped, but the ring deadline uses real elapsed
     // active-play seconds so low frame rates cannot extend its 30-second limit.
     const frameDelta = clock.getDelta();
     const delta = Math.min(frameDelta, 0.05);
+    if (document.hidden || platform.blocked || appDisposed) {
+        animationFrameId = requestAnimationFrame(animate);
+        return;
+    }
+    if (isPoki && (gameState === 'start' || gameState === 'paused')) {
+        if (time - lastIdleFrameAt < 100) {
+            animationFrameId = requestAnimationFrame(animate);
+            return;
+        }
+        lastIdleFrameAt = time;
+    }
     inputManager.update(delta);
 
     if (gameState === 'running' || gameState === 'terminated') {
@@ -1073,6 +1166,7 @@ function resizeViewport() {
     const height = Math.max(container.clientHeight, 1);
     cameraDynamics.resize(width / height, hovercraft);
     resizeRenderer(renderer, container);
+    hangarPanel.viewer.resize();
 }
 
 /** Coalesces mobile URL-bar and orientation resize bursts into one frame. */
@@ -1082,7 +1176,28 @@ function handleResize() {
 }
 
 function handleVisibilityChange() {
+    if (document.hidden) {
+        launchGeneration++;
+        platform.cancelPending();
+        audioEngine.setPaused(true);
+        scoreManager.persistRecords();
+        hangarPanel.viewer.close();
+    } else if (hangarPanel.dialog.open) {
+        hangarPanel.viewer.open(hangarPanel.previewId);
+    }
     if (document.hidden && gameState === 'running') setGameState('paused');
+}
+
+function pauseForMenu() {
+    if (startTransitionPending) { launchGeneration++; platform.cancelPending(); }
+    if (gameState === 'running') setGameState('paused');
+}
+
+function updateStorageNotice() {
+    if (!isPoki) return;
+    const note = document.querySelector('[data-storage-notice]');
+    note.hidden = platformStorage.persistent;
+    note.textContent = 'Saving is unavailable. Records and aircraft progress last for this session only.';
 }
 
 function openDailyResults(event) {
@@ -1090,6 +1205,9 @@ function openDailyResults(event) {
 }
 
 function disposeApp() {
+    appDisposed = true;
+    platform.dispose();
+    removeScrollGuard();
     scoreManager.persistRecords();
     analytics.dispose();
     cancelAnimationFrame(animationFrameId);
@@ -1112,6 +1230,7 @@ function disposeApp() {
     leaderboardRefreshButton.removeEventListener('click', refreshLeaderboard);
     leaderboardSendButton.removeEventListener('click', submitOnlineScore);
     pauseButton.removeEventListener('click', togglePause);
+    touchPauseButton.removeEventListener('click', togglePause);
     restartButton.removeEventListener('click', restartRun);
     exitMenuButton.removeEventListener('click', backToMainMenu);
     classicModeButton.removeEventListener('click', returnToClassic);
@@ -1166,6 +1285,7 @@ leaderboardDialog.addEventListener('close', restoreLeaderboardFocus);
 leaderboardRefreshButton.addEventListener('click', refreshLeaderboard);
 leaderboardSendButton.addEventListener('click', submitOnlineScore);
 pauseButton.addEventListener('click', togglePause);
+touchPauseButton.addEventListener('click', togglePause);
 startFlightButton.addEventListener('click', () => {
     if (gameState === 'start' || gameState === 'paused') void startRunning();
 });
@@ -1176,7 +1296,7 @@ dailySubmitButton.addEventListener('click', openDailyResults);
 hangarUnlockOpen.addEventListener('click', openNewHangarUnlock);
 window.addEventListener('pagehide', disposeApp, { once: true });
 setGameState('start');
-if (leaderboard.enabled) {
+if (leaderboard.enabled || localOnly) {
     void hangarPanel.refreshProgress();
     void classicAutoSubmit.resume();
     window.addEventListener('online', () => { void classicAutoSubmit.resume(); });
@@ -1184,3 +1304,10 @@ if (leaderboard.enabled) {
 updateHud();
 resizeViewport();
 animate();
+document.querySelector('[data-loading-status]').hidden = true;
+platform.loadingFinished();
+if (isPoki) {
+    platformStorage.setItem('storage-check', '1');
+    platformStorage.removeItem('storage-check');
+    updateStorageNotice();
+}

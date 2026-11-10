@@ -102,6 +102,7 @@ export class DailyChallengePanel {
         this.loading = true;
         this.refreshButton.disabled = true;
         this.statusElement.textContent = 'Loading today’s rankings…';
+        if (this.service.local) this.statusElement.textContent = 'Loading local Daily records…';
         this.updateActions();
         try {
             const result = await this.service.getToday();
@@ -112,6 +113,9 @@ export class DailyChallengePanel {
                 ? 'Your daily best: ' + Number(result.me.score).toLocaleString()
                     + ' · Rank #' + result.me.rank
                 : 'No daily best yet — your first run can enter today’s rankings.';
+            if (this.service.local) this.ownElement.textContent = result.me
+                ? 'Local Daily best: ' + Number(result.me.score).toLocaleString()
+                : 'No local Daily best yet — finish your first flight.';
             const rows = document.createDocumentFragment();
             for (const player of (result.entries ?? [])) {
                 const row = document.createElement('li');
@@ -140,6 +144,10 @@ export class DailyChallengePanel {
             this.statusElement.textContent = result.entries?.length
                 ? 'Top 50 daily pilots · Highest score per player'
                 : 'No daily scores yet. Be the first!';
+            if (this.service.local) {
+                this.statusElement.textContent = 'This device only · Device UTC date · No global ranks or server verification';
+                this.form.hidden = true;
+            }
             this.updateCountdown();
         } catch (error) {
             this.statusElement.textContent = 'Daily rankings unavailable: ' + error.message;
@@ -154,6 +162,7 @@ export class DailyChallengePanel {
         if (!this.canPlay()) return;
         this.playButton.disabled = true;
         this.statusElement.textContent = 'Registering your daily attempt…';
+        if (this.service.local) this.statusElement.textContent = 'Preparing your local Daily course…';
         try {
             const ready = await this.onPlay();
             if (ready) {

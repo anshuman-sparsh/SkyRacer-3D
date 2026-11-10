@@ -230,6 +230,9 @@
   <link rel="stylesheet" href="/src/styles/racing-ui.css" />
 </head>
 <body>
+  <div data-game-ui>
+  <p class="loading-status" data-loading-status role="status">Loading flight…</p>
+  <p class="storage-notice" data-storage-notice role="status" hidden></p>
   <div id="app"></div>
   <div class="speed-lines" data-speed-lines aria-hidden="true"></div>
   <div class="hud" aria-live="polite">
@@ -259,6 +262,7 @@
     <button class="touch-boost" type="button" data-touch-boost>BOOST</button>
   </div>
   <div class="touch-indicator" data-touch-indicator aria-hidden="true"><span class="touch-indicator__thumb" data-touch-indicator-thumb></span></div>
+  <button class="poki-touch-pause" type="button" data-touch-pause hidden>PAUSE</button>
   <div class="state-overlay" data-state-overlay>
     <div class="state-overlay__content glass-panel">
       <div class="state-overlay__hero" data-overlay-hero>
@@ -486,6 +490,7 @@
       <footer class="hangar-shell__footer">Elite rewards work in Classic, Daily and Friend Challenge flights when equipped. They grant a small earned advantage; the scoring formula, hazards and leaderboards remain unchanged.</footer>
     </div>
   </dialog>
-  <script type="module" src="/src/main.js"></script>
+  </div>
+  <script type="module" src="/src/boot.js"></script>
 </body>
 </html>

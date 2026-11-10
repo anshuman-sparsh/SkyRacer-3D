@@ -94,6 +94,43 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
   outline-offset: 3px;
 }
 [hidden] { display: none !important; }
+.flight-coach, .flight-milestone {
+  position: fixed; z-index: 3; left: 50%; transform: translateX(-50%);
+  max-width: min(460px, calc(100vw - 32px)); pointer-events: none;
+  color: var(--sr-text); background: var(--sr-panel); border: 1px solid var(--sr-line);
+  border-radius: 10px; padding: 9px 14px; text-align: center;
+  font: 550 13px/1.45 var(--sr-font-body);
+}
+.flight-coach { bottom: max(calc(env(safe-area-inset-bottom) + 90px), 110px); display: flex; align-items: center; gap: 10px; }
+.flight-coach strong { color: var(--sr-accent-bright); font: 750 13px/1.3 var(--sr-font-data); white-space: nowrap; }
+.flight-milestone { top: max(135px, 20dvh); margin: 0; color: var(--sr-accent-bright); font-weight: 750; }
+.replay-comparison { margin: 9px 0; color: var(--sr-muted); font: 600 13px/1.45 var(--sr-font-body); }
+.replay-comparison.is-record { color: var(--sr-accent-bright); }
+.state-overlay__action.replay-primary { width: min(100%, 360px); min-height: 52px; margin: 8px auto 10px; font-size: 16px; touch-action: manipulation; }
+.replay-primary:disabled { opacity: .7; }
+.replay-progress { margin: 4px auto 10px; max-width: 440px; color: var(--sr-muted); font: 500 12px/1.5 var(--sr-font-body); }
+.replay-progress progress { display: block; width: 100%; height: 6px; margin-top: 7px; accent-color: var(--sr-accent); }
+.state-overlay[data-state="terminated"] .state-overlay__records { display: none; }
+@keyframes ring-confirm-alt { 35% { color: #fff; transform: scale(1.35); text-shadow: 0 0 18px #fff; } }
+@media (max-width: 767px) {
+  .flight-coach { padding: 8px 10px; font-size: 12px; width: max-content; gap: 8px; }
+  .flight-coach strong { font-size: 11px; }
+  .flight-milestone { top: 105px; font-size: 11px; padding: 6px 10px; }
+  .state-overlay[data-state="terminated"] .state-overlay__content { padding: 16px 15px; }
+  .state-overlay[data-state="terminated"] .state-overlay__title { font-size: 24px; }
+  .state-overlay__action.replay-primary { min-height: 50px; }
+}
+@media (max-height: 470px) and (orientation: landscape) {
+  .flight-coach { bottom: max(calc(env(safe-area-inset-bottom) + 58px), 65px); padding: 5px 10px; }
+  .flight-milestone { top: 85px; }
+  .state-overlay[data-state="terminated"] .state-overlay__content { padding: 12px 16px; }
+  .state-overlay[data-state="terminated"] .state-overlay__title { font-size: 22px; }
+  .state-overlay[data-state="terminated"] .state-overlay__message { font-size: 12px; margin: 5px 0; }
+  .state-overlay__action.replay-primary { min-height: 44px; margin: 4px auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rings-panel__value.is-collected, .rings-panel__value.is-collected-alt { animation: none; }
+}
 ::selection { color: #14100b; background: var(--sr-accent-bright); }
 
 /* HUD — clearer, consistent dimensions and sober instruments. */

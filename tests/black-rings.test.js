@@ -43,17 +43,20 @@ function coordinates(track) {
     };
 }
 
-test('black hazard rings have no central X, black circumference and a swept crossing volume', () => {
+test('hazard rings have a red-orange rim, warning cross and unchanged swept volume', () => {
     const black = new BlackRing();
     try {
         assert.equal(black.isHazard, true);
         assert.equal(black.isSurge, false);
         assert.equal(black.name, 'BlackHazardRing');
-        assert.equal(black.ringVisual.children.length, 2, 'only black torus and neutral halo; no center X');
-        assert.equal(black.material.color.getHex(), 0x050505);
-        assert.equal(black.material.emissive.getHex(), 0x090909);
-        assert.equal(black.haloMaterial.color.getHex(), 0x484848);
-        assert.equal(black.groundAnchor.outerMaterial.color.getHex(), 0x505050);
+        assert.equal(black.ringVisual.children.length, 3, 'colored torus, soft halo and dark inner rim');
+        assert.equal(black.warningCross.children.length, 2, 'two diagonal bars form the danger X');
+        assert.equal(black.material.color.getHex(), 0xff4d3d);
+        assert.equal(black.material.emissive.getHex(), 0xff4d3d);
+        assert.equal(black.haloMaterial.color.getHex(), 0xff4d3d);
+        assert.equal(black.innerRim.material.color.getHex(), 0x171018);
+        assert.equal(black.innerRim.geometry, black.ring.geometry);
+        assert.equal(black.groundAnchor.outerMaterial.color.getHex(), 0xff4d3d);
         black.position.set(0, 3, -10);
         assert.equal(black.intersectsPath(
             new THREE.Vector3(0, 3, 6),
@@ -65,7 +68,7 @@ test('black hazard rings have no central X, black circumference and a swept cros
         ), false, 'flying outside the opening is safe');
         assert.equal(black.containsPoint(new THREE.Vector3(0, 3, -10)), true);
         black.update(1 / 60);
-        assert.ok(black.haloMaterial.opacity > 0.2);
+        assert.ok(black.haloMaterial.opacity >= 0.14 && black.haloMaterial.opacity <= 0.24);
     } finally {
     }
 });
@@ -200,12 +203,12 @@ test('black rings return to the pool on reset and leave the scene on destroy', (
     }, { random: createDailyRandom('2026-10-29', 2), aheadDistance: 24 * 80 });
 });
 
-test('help and termination copy clearly explain that black rings are fatal', () => {
+test('help and termination copy clearly explain that red-orange hazard rings are fatal', () => {
     const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
     const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-    assert.match(html, /Black hazard ring:/);
+    assert.match(html, /Hazard ring \(red-orange\):/);
     assert.match(html, /All points and rings you've already earned stay in your final score/);
-    assert.match(main, /blackRing: \['BLACK RING HIT'/);
+    assert.match(main, /blackRing: \['HAZARD RING HIT'/);
     assert.match(main, /collisionType === 'black-ring'/);
     assert.match(main, /ringGuidance\.update\(trackManager\.energyRings, hovercraft(?:,|\))/);
 });

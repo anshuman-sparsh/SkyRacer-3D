@@ -323,9 +323,7 @@ if (isPoki) {
 const STATE_COPY = {
     start: [
         'READY FOR TAKEOFF',
-        isTouchPrimary
-            ? 'Drag to steer and climb. Hold BOOST. Fly through blue / pink rings; avoid black rings. Collect a ring every 30 seconds.'
-            : 'WASD / arrows to steer · Space / Shift to boost · Fly through blue / pink rings; avoid black rings. Collect a ring every 30 seconds.',
+        'Open Menu → Help & controls to learn how to play.',
     ],
     paused: [
         'FLIGHT PAUSED',
@@ -333,7 +331,7 @@ const STATE_COPY = {
     ],
     terminated: ['FLIGHT ENDED', 'Navigation barrier contact. Ready for another run?'],
     ringTimeout: ['FLIGHT ENDED', 'No ring collected within 30 seconds. Try another route.'],
-    blackRing: ['BLACK RING HIT', 'Flight ended. You keep your earned score and rings — just like a barrier collision.'],
+    blackRing: ['HAZARD RING HIT', 'Flight ended. You keep your earned score and rings — just like a barrier collision.'],
 };
 
 function updateRingDeadlineDisplay() {

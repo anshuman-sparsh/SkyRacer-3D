@@ -109,8 +109,8 @@ export class HangarPanel {
             equip.setAttribute('aria-label', (current ? 'Equipped: ' : 'Equip ') +
                 HANGAR_AIRCRAFT.find(a => a.id === id).name);
             locked.hidden = owned;
-            requirement.hidden = owned || isStarter;
-            progress.hidden = owned || isStarter;
+            requirement.hidden = owned && !isStarter;
+            progress.hidden = isStarter;
         }
     }
 
@@ -243,8 +243,7 @@ export class HangarPanel {
             heading.textContent = aircraft.name;
             const requirement = document.createElement('p');
             requirement.dataset.hangarRequirement = '';
-            requirement.textContent = aircraft.tier === 'Starter' ? '' : aircraft.requirement;
-            requirement.hidden = aircraft.tier === 'Starter';
+            requirement.textContent = aircraft.tier === 'Starter' ? 'FREE' : aircraft.requirement;
             const progress = document.createElement('p');
             progress.dataset.aircraftProgress = '';
             progress.textContent = aircraft.tier === 'Starter' ? '' : 'Checking progress…';

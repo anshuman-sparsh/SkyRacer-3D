@@ -42,6 +42,8 @@ export function disposeObject3D(root) {
     const materials = new Set();
 
     root.traverse((object) => {
+        // Instance buffers belong to the mesh, independently of shared geometry.
+        if (object.isInstancedMesh) object.dispose();
         if (object.geometry && !isShared(object.geometry)) geometries.add(object.geometry);
 
         const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];

@@ -1,5 +1,5 @@
 import { HANGAR_AIRCRAFT, HANGAR_MILESTONES } from '../hangar/HangarCatalog.js';
-import { HangarPreview } from '../hangar/HangarPreview.js';
+import { LazyHangarPreview } from '../hangar/LazyHangarPreview.js';
 
 /**
  * M5-B: independent pre-flight Hangar with 3D aircraft preview.
@@ -34,7 +34,7 @@ export class HangarPanel {
         this.abilityStatus = document.querySelector('[data-hangar-ability]');
         this.preview = document.querySelector('[data-hangar-preview]');
         this.canvas = document.querySelector('[data-hangar-canvas]');
-        this.viewer = new HangarPreview(this.canvas);
+        this.viewer = new LazyHangarPreview(this.canvas);
         this.previewId = selection.activeId;
         this.tab = 'aircraft';
 

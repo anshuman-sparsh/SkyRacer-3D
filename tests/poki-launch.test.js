@@ -158,7 +158,7 @@ test('settled game-over frames stop render/physics work but a resize can redraw 
     const animate=source.slice(source.indexOf('function animate('),source.indexOf('\nfunction resizeViewport()'));
     let renders=0;
     const c={clock:{getDelta:()=>.016},document:{hidden:false},platform:{blocked:false},appDisposed:false,
-        gameState:'terminated',isPoki:true,scene:{},camera:{},terminalAnimationSeconds:3,terminalFrameDirty:false,
+        gameState:'terminated',isPoki:true,scene:{},camera:{},hangarPanel:{dialog:{open:false}},terminalAnimationSeconds:3,terminalFrameDirty:false,
         animationFrameId:0,requestAnimationFrame:()=>1,
         inputManager:{update(){throw Error('Idle input work');}},renderer:{render(){renders++;}}};
     vm.createContext(c);vm.runInContext(animate,c);c.animate(5000);assert.equal(renders,0);

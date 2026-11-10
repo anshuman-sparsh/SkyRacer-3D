@@ -37,6 +37,7 @@ import { CollisionDebug } from './utils/CollisionDebug.js';
 import { FlightCoach, FlightMilestones } from './ui/FlightCoach.js';
 import { scoreComparison, nextHangarGoal } from './ui/ReplaySummary.js';
 import { createSafeStorage } from './platform/SafeStorage.js';
+import { readQualityProfile } from './core/QualityProfile.js';
 
 inject();
 
@@ -46,8 +47,8 @@ const SPEEDOMETER_MAX_KMH = 180;
 const HUD_UPDATE_INTERVAL = 1 / 20;
 // Preserve the full skyline on desktop while reducing decorative work on touch
 // devices and narrow viewports; gameplay objects are never affected.
-const reducedScenery = usesTouchControls(window, navigator)
-    || Math.min(window.innerWidth, window.innerHeight) < 600;
+const quality = readQualityProfile(window, navigator);
+const reducedScenery = quality.reducedScenery;
 
 const container = document.querySelector('#app');
 const renderer = createRenderer(container);
@@ -78,7 +79,7 @@ const friendService = new FriendChallengeService(leaderboard);
 const analytics = new GameplayAnalyticsService({
     submitEvent: leaderboard.enabled ? (event) => leaderboard.sendGameplayEvent(event) : null,
 });
-const speedParticles = new SpeedParticles();
+const speedParticles = new SpeedParticles({ count: quality.speedParticles });
 const audioEngine = new AudioEngine();
 scene.add(hovercraft);
 scene.add(ringGuidance);
@@ -158,6 +159,7 @@ const inputManager = new InputManager(window, {
 
 let animationFrameId = 0;
 let lastIdleFrameAt = -Infinity;
+let lastViewportAspect = container.clientWidth / Math.max(container.clientHeight, 1);
 let gameState = 'start';
 let gameMode = 'classic';
 // One server-authorized equipment snapshot per flight; resumes never swap abilities.
@@ -299,8 +301,8 @@ const coachStorage = platformStorage ?? createSafeStorage({ prefix: 'skyracer_we
 const flightCoach = new FlightCoach(coachStorage, isTouchPrimary, { experienced: classicScoreManager.getHighScore() > 0 });
 const flightMilestones = new FlightMilestones();
 document.documentElement.dataset.touchControls = String(isTouchPrimary);
-touchPauseButton.hidden = !isPoki || !isTouchPrimary;
-const removeScrollGuard = isPoki ? installScrollGuard(window) : () => {};
+touchPauseButton.hidden = !isTouchPrimary;
+const removeScrollGuard = installScrollGuard(window);
 // SDK-owned ad overlays remain outside this game-owned interaction boundary.
 const gameUi = isPoki ? [document.querySelector('[data-game-ui]')] : [];
 platform.onBlocked = blocked => {
@@ -1111,11 +1113,12 @@ function animate(time = 0) {
     // active-play seconds so low frame rates cannot extend its 30-second limit.
     const frameDelta = clock.getDelta();
     const delta = Math.min(frameDelta, 0.05);
-    if (document.hidden || platform.blocked || appDisposed) {
+    if (appDisposed) return;
+    if (document.hidden || platform.blocked || hangarPanel.dialog.open) {
         animationFrameId = requestAnimationFrame(animate);
         return;
     }
-    if (isPoki && (gameState === 'start' || gameState === 'paused')) {
+    if (gameState === 'start' || gameState === 'paused') {
         if (time - lastIdleFrameAt < 100) {
             animationFrameId = requestAnimationFrame(animate);
             return;
@@ -1247,7 +1250,10 @@ function resizeViewport() {
     resizeFrameId = 0;
     const width = Math.max(container.clientWidth, 1);
     const height = Math.max(container.clientHeight, 1);
-    cameraDynamics.resize(width / height, hovercraft);
+    const aspect = width / height;
+    if ((lastViewportAspect >= 1) !== (aspect >= 1)) inputManager.cancelPointers();
+    lastViewportAspect = aspect;
+    cameraDynamics.resize(aspect, hovercraft);
     resizeRenderer(renderer, container);
     hangarPanel.viewer.resize();
     terminalFrameDirty = true;
@@ -1261,15 +1267,29 @@ function handleResize() {
 
 function handleVisibilityChange() {
     if (document.hidden) {
-        launchGeneration++;
-        platform.cancelPending();
-        audioEngine.setPaused(true);
-        scoreManager.persistRecords();
-        hangarPanel.viewer.close();
+        suspendForBackground();
     } else if (hangarPanel.dialog.open) {
         hangarPanel.viewer.open(hangarPanel.previewId);
     }
-    if (document.hidden && gameState === 'running') setGameState('paused');
+}
+
+function suspendForBackground() {
+    launchGeneration++;
+    platform.cancelPending();
+    if (gameState === 'running') setGameState('paused');
+    inputManager.reset();
+    audioEngine.setPaused(true);
+    scoreManager.persistRecords();
+    hangarPanel.viewer.close();
+}
+
+function handlePageHide(event) {
+    if (event.persisted) suspendForBackground();
+    else disposeApp();
+}
+
+function handlePageShow(event) {
+    if (event.persisted && !appDisposed) { clock.getDelta(); handleVisibilityChange(); handleResize(); }
 }
 
 function pauseForMenu() {
@@ -1289,6 +1309,7 @@ function openDailyResults(event) {
 }
 
 function disposeApp() {
+    if (appDisposed) return;
     appDisposed = true;
     platform.dispose();
     removeScrollGuard();
@@ -1299,6 +1320,9 @@ function disposeApp() {
     window.removeEventListener('resize', handleResize);
     window.removeEventListener('orientationchange', handleResize);
     window.visualViewport?.removeEventListener('resize', handleResize);
+    viewportObserver?.disconnect();
+    window.removeEventListener('pagehide', handlePageHide);
+    window.removeEventListener('pageshow', handlePageShow);
     window.removeEventListener('keydown', handleGameKey);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     audioButton.removeEventListener('click', handleAudioToggle);
@@ -1378,7 +1402,10 @@ exitMenuButton.addEventListener('click', backToMainMenu);
 classicModeButton.addEventListener('click', returnToClassic);
 dailySubmitButton.addEventListener('click', openDailyResults);
 hangarUnlockOpen.addEventListener('click', openNewHangarUnlock);
-window.addEventListener('pagehide', disposeApp, { once: true });
+window.addEventListener('pagehide', handlePageHide);
+window.addEventListener('pageshow', handlePageShow);
+const viewportObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(handleResize) : null;
+viewportObserver?.observe(container);
 setGameState('start');
 if (leaderboard.enabled || localOnly) {
     void hangarPanel.refreshProgress();

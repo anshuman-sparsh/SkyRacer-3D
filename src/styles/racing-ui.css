@@ -960,5 +960,60 @@ html[data-platform="poki"] .speedometer { margin-top: 72px; }
   font-size: 11px;
   cursor: pointer;
 }
+
+/* P2: preserve native text editing while making gameplay surfaces gesture-safe. */
+#app canvas, .touch-boost, .poki-touch-pause, .hangar-preview__canvas {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+#app canvas, .touch-boost { touch-action: none; }
+button { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-select: text; }
+.quick-menu-trigger, .help-close, .hangar-shell__close,
+.hangar-entry__button, .hangar-aircraft__equip, .hangar-match-appearance {
+  min-height: 44px;
+}
+.help-close { min-width: 44px; }
+.help-dialog__head { position: sticky; top: 0; z-index: 2; background: var(--sr-bg); }
+.help-dialog, .hangar-shell, .quick-menu, .state-overlay { overscroll-behavior: contain; }
+.hangar-shell__inner {
+  padding-top: max(env(safe-area-inset-top), 20px);
+  padding-bottom: max(calc(env(safe-area-inset-bottom) + 12px), 20px);
+  padding-left: max(env(safe-area-inset-left), 18px);
+  padding-right: max(env(safe-area-inset-right), 18px);
+}
+.hangar-shell__header { flex-wrap: wrap; gap: 10px; }
+.hangar-shell__header h2 { overflow-wrap: anywhere; }
+.hangar-aircraft { padding-bottom: 64px; }
+.hangar-aircraft__locked { bottom: 22px; }
+.hangar-preview__canvas, .hangar-preview__canvas canvas { touch-action: pan-y; }
+.hangar-preview__canvas.is-loading + .hangar-preview__silhouette { display: block; }
+html[data-platform="poki"] .hangar-shell__header { padding-top: 72px; }
+html[data-touch-controls="true"] .touch-hint { display: none; }
+html[data-touch-controls="true"] .touch-controls {
+  bottom: max(env(safe-area-inset-bottom), 12px);
+  padding-left: max(env(safe-area-inset-left), 12px);
+  padding-right: max(env(safe-area-inset-right), 12px);
+}
+html[data-touch-controls="true"] .quick-menu-trigger {
+  bottom: max(calc(env(safe-area-inset-bottom) + 72px), 84px);
+  left: max(env(safe-area-inset-left), 12px);
+}
+html[data-touch-controls="true"] .quick-menu {
+  bottom: max(calc(env(safe-area-inset-bottom) + 128px), 140px);
+  max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 152px);
+}
+html[data-touch-controls="true"] .hud-button[data-pause-toggle] { display: none; }
+html[data-touch-controls="true"] .flight-coach {
+  bottom: max(calc(env(safe-area-inset-bottom) + 140px), 152px);
+}
+html[data-touch-controls="true"] .flight-milestone { top: max(calc(env(safe-area-inset-top) + 118px), 22dvh); }
+@media (max-width: 360px) {
+  .hud { grid-template-columns: 68px minmax(72px, 1fr) 100px; gap: 4px; }
+  .boost-panel__status { display: none; }
+  .score-panel__value, .rings-panel__value { font-size: 19px; }
+}
+@media (pointer: coarse), (any-pointer: coarse) {
+  input, textarea, select { font-size: 16px; }
+}
 .hangar-match-appearance[aria-pressed="true"] { border-color: var(--sr-accent, #5ef0ff); }
 .hangar-match-appearance:focus-visible { outline: 2px solid var(--sr-accent, #5ef0ff); outline-offset: 3px; }

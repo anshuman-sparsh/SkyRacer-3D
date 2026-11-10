@@ -6,7 +6,8 @@ import { HangarPreview } from '../hangar/HangarPreview.js';
  * Both free starters are equipable; advanced aircraft remain locked until M5-C.
  */
 export class HangarPanel {
-    constructor({ getTheme, canOpen, selection, loadProgress = null, onNewUnlock = () => {} }) {
+    constructor({ getTheme, canOpen, selection, loadProgress = null, local = false, onNewUnlock = () => {} }) {
+        this.local = local;
         this.onNewUnlock=onNewUnlock;
         this.loadProgress=loadProgress;
         this.progress=null;
@@ -143,7 +144,7 @@ export class HangarPanel {
         if (!this.loadProgress) return;
         if (this.loading) { this.refreshAgain=true; return; }
         this.loading=true;
-        this.status.textContent='Checking verified pilot progress…';
+        this.status.textContent=this.local ? 'Checking local pilot progress…' : 'Checking verified pilot progress…';
         try {
             const data=await this.loadProgress();
             if (!data || !Array.isArray(data.unlockedIds)) throw Error('Unexpected progress response');
@@ -155,12 +156,13 @@ export class HangarPanel {
                     !previous.includes(id) && !['cyan-striker','ember-striker'].includes(id));
                 if (unlocked.length) this.onNewUnlock(unlocked);
             }
-            this.status.textContent = 'Verified flights: '+data.verifiedRuns+' · Rings: '+data.totalRings
+            this.status.textContent = (this.local ? 'Local flights: ' : 'Verified flights: ')+data.verifiedRuns+' · Rings: '+data.totalRings
                 +' · Distance: '+Math.floor(data.totalDistance).toLocaleString();
             this.refresh();
             this.renderProgress();
         } catch(error) {
-            this.status.textContent='Progress unavailable: '+error.message+'. Unverified rewards stay locked.';
+            this.status.textContent='Progress unavailable: '+error.message
+                +(this.local ? '. This session can still fly with the free aircraft.' : '. Unverified rewards stay locked.');
         } finally {
             this.loading=false;
             if (this.refreshAgain) {
@@ -244,6 +246,11 @@ export class HangarPanel {
             const requirement = document.createElement('p');
             requirement.dataset.hangarRequirement = '';
             requirement.textContent = aircraft.tier === 'Starter' ? 'FREE' : aircraft.requirement;
+            if (this.local) {
+                requirement.textContent = requirement.textContent.replace('verified ', 'local ');
+                if (aircraft.id === 'apex-overdrive') requirement.textContent =
+                    'Requires online Friend Challenge wins · Unavailable in this local edition';
+            }
             const progress = document.createElement('p');
             progress.dataset.aircraftProgress = '';
             progress.textContent = aircraft.tier === 'Starter' ? '' : 'Checking progress…';
@@ -279,9 +286,12 @@ export class HangarPanel {
             title.textContent = milestone.title;
             const description = document.createElement('span');
             description.textContent = milestone.criterion;
+            if (this.local) description.textContent = milestone.title === 'Rival Hunter'
+                ? 'Online Friend Challenges unavailable in this edition'
+                : milestone.criterion.replace(/verified /g, 'local ');
             const progress=document.createElement('span');
             progress.dataset.achievementProgress='';
-            progress.textContent='Not verified yet';
+            progress.textContent=this.local ? 'Checking local progress…' : 'Not verified yet';
             item.append(title, description, progress);
             fragment.append(item);
         }

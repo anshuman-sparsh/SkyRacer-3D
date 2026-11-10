@@ -6,6 +6,8 @@
     "scripts": {
         "dev": "vite",
         "build": "npm run test && vite build",
+        "build:poki": "npm run test && vite build --mode poki && node scripts/check-poki-build.js",
+        "preview:poki": "vite preview --mode poki --outDir dist-poki",
         "preview": "vite preview",
         "test": "node --test"
     },

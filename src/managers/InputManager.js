@@ -26,6 +26,7 @@ export class InputManager {
         touchIndicatorThumb = null,
     } = {}) {
         this.eventTarget = eventTarget;
+        this.enabled = true;
         this.touchSurface = touchSurface;
         this.boostButton = boostButton;
         this.touchIndicator = touchIndicator;
@@ -84,6 +85,7 @@ export class InputManager {
     }
 
     #setKeyState(event, isPressed) {
+        if (!this.enabled) return;
         const action = KEY_ACTIONS[event.code];
         // Key release still belongs to the game if focus moved after keydown.
         // Do not cancel native behavior on the newly focused control.
@@ -112,6 +114,7 @@ export class InputManager {
     }
 
     #onPointerDown(event) {
+        if (!this.enabled) return;
         if (event.pointerType === 'mouse' || this.controlPointerId !== null) return;
 
         event.preventDefault();
@@ -198,6 +201,7 @@ export class InputManager {
     }
 
     #onBoostPress(event) {
+        if (!this.enabled) return;
         if (event.pointerType === 'mouse' && event.button !== 0) return;
         event.preventDefault();
         if (this.boostPointerId !== null) return;
@@ -213,6 +217,11 @@ export class InputManager {
         this.boostPointerId = null;
         this.state.boost = false;
         this.boostButton.classList.remove('is-active');
+    }
+
+    setEnabled(enabled) {
+        this.enabled = Boolean(enabled);
+        if (!this.enabled) this.reset();
     }
 
     reset() {

@@ -209,7 +209,7 @@ test('all quick-menu and audio DOM hooks exist', () => {
         'start-flight', 'overlay-hero', 'exit-menu']) {
         assert.ok(html.includes('data-' + attribute), 'Missing ' + attribute);
     }
-    assert.match(controller, /const themeController = new ThemeController\(\)/);
+    assert.match(controller, /const themeController = new ThemeController\(\{ storage: platformStorage \}\)/);
     assert.match(controller, /const quickMenu = new QuickMenu/);
     assert.match(css, /\.quick-menu__audio-popover/);
     assert.match(html, /aria-controls="skyracer-audio-panel"/);

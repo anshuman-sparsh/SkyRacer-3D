@@ -14,9 +14,9 @@ const RINGS_PER_SPEED_LEVEL = 6;
  * modes and sandboxed frames, and the stored value can be corrupted by hand, so
  * every failure path falls back to a zero high score instead of breaking boot.
  */
-function readStoredRecord(key) {
+function readStoredRecord(key, storage) {
     try {
-        const stored = window.localStorage.getItem(key);
+        const stored = (storage ?? window.localStorage).getItem(key);
         const parsed = Number.parseInt(stored ?? '', 10);
         return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
     } catch {
@@ -25,7 +25,8 @@ function readStoredRecord(key) {
 }
 
 export class ScoreManager {
-    constructor({ ringBonus = RING_BONUS_POINTS, recordsEnabled = true } = {}) {
+    constructor({ ringBonus = RING_BONUS_POINTS, recordsEnabled = true, storage } = {}) {
+        this.storage = storage;
         this.recordsEnabled = recordsEnabled;
         this.distance = 0;
         this.currentVelocity = 0;
@@ -33,8 +34,8 @@ export class ScoreManager {
         this.score = 0;
         this.ringBonus = ringBonus;
 
-        this.highScore = recordsEnabled ? readStoredRecord(HIGH_SCORE_KEY) : 0;
-        this.bestRings = recordsEnabled ? readStoredRecord(BEST_RINGS_KEY) : 0;
+        this.highScore = recordsEnabled ? readStoredRecord(HIGH_SCORE_KEY, storage) : 0;
+        this.bestRings = recordsEnabled ? readStoredRecord(BEST_RINGS_KEY, storage) : 0;
         this.isStorageAvailable = true;
         this.timeSincePersist = 0;
         this.hasUnsavedHighScore = false;
@@ -75,11 +76,11 @@ export class ScoreManager {
 
         try {
             if (this.hasUnsavedHighScore) {
-                window.localStorage.setItem(HIGH_SCORE_KEY, String(this.highScore));
+                (this.storage ?? window.localStorage).setItem(HIGH_SCORE_KEY, String(this.highScore));
                 this.hasUnsavedHighScore = false;
             }
             if (this.hasUnsavedBestRings) {
-                window.localStorage.setItem(BEST_RINGS_KEY, String(this.bestRings));
+                (this.storage ?? window.localStorage).setItem(BEST_RINGS_KEY, String(this.bestRings));
                 this.hasUnsavedBestRings = false;
             }
         } catch {

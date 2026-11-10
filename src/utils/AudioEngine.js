@@ -8,6 +8,7 @@ export class AudioEngine {
         this.engineFilter = null;
         this.engineGain = null;
         this.muted = false;
+        this.adMuted = false;
         this.paused = true;
         this.oneShots = new Set();
         this.boostNoiseBuffer = null;
@@ -15,10 +16,10 @@ export class AudioEngine {
         this.lastBoostState = false;
     }
 
-    async start() {
+    async start({ paused = false } = {}) {
         if (this.context) {
             if (this.context.state === 'suspended') await this.context.resume();
-            this.paused = false;
+            this.paused = paused;
             return true;
         }
 
@@ -27,7 +28,7 @@ export class AudioEngine {
 
         this.context = new AudioContextClass();
         this.masterGain = this.context.createGain();
-        this.masterGain.gain.value = this.muted ? 0 : 0.75;
+        this.masterGain.gain.value = this.muted || this.adMuted ? 0 : 0.75;
         this.masterGain.connect(this.context.destination);
 
         this.engineOscillator = this.context.createOscillator();
@@ -41,7 +42,7 @@ export class AudioEngine {
         this.engineOscillator.connect(this.engineFilter).connect(this.engineGain).connect(this.masterGain);
         this.engineOscillator.start();
         this.boostNoiseBuffer = this.#createBoostNoiseBuffer();
-        this.paused = false;
+        this.paused = paused;
         return true;
     }
 
@@ -62,7 +63,7 @@ export class AudioEngine {
     }
 
     playRingChime() {
-        if (!this.context || this.muted) return;
+        if (!this.context || this.muted || this.adMuted) return;
         const now = this.context.currentTime;
         for (const [frequency, delay] of [[659.25, 0], [987.77, 0.055]]) {
             const oscillator = this.context.createOscillator();
@@ -80,7 +81,7 @@ export class AudioEngine {
     }
 
     playBoost() {
-        if (!this.context || this.muted) return;
+        if (!this.context || this.muted || this.adMuted) return;
         const duration = 0.55;
         const now = this.context.currentTime;
 
@@ -108,7 +109,7 @@ export class AudioEngine {
     setMuted(muted) {
         this.muted = Boolean(muted);
         if (this.masterGain && this.context) {
-            this.masterGain.gain.setTargetAtTime(this.muted ? 0 : 0.75, this.context.currentTime, 0.02);
+            this.masterGain.gain.setTargetAtTime(this.muted || this.adMuted ? 0 : 0.75, this.context.currentTime, 0.02);
         }
         return this.muted;
     }
@@ -118,8 +119,19 @@ export class AudioEngine {
         return this.setMuted(!this.muted);
     }
 
+    setAdMuted(muted) {
+        this.adMuted = Boolean(muted);
+        if (this.masterGain && this.context) {
+            const now = this.context.currentTime;
+            this.masterGain.gain.cancelScheduledValues(now);
+            this.masterGain.gain.setValueAtTime(this.muted || this.adMuted ? 0 : 0.75, now);
+        }
+    }
+
     setPaused(paused) {
         this.paused = paused;
+        // Pauses can occur inside the 30 Hz update interval; force silence now.
+        this.lastEngineUpdateTime = -Infinity;
         this.update(0, false);
     }
 

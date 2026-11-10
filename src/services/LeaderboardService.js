@@ -26,6 +26,7 @@ export class LeaderboardService {
         fetchImpl = (...args) => globalThis.fetch(...args),
         storage = null,
         now = () => Date.now(),
+        countryEnabled = true,
     } = {}) {
         this.url = typeof url === 'string' ? url.trim().replace(/\/+$/, '') : '';
         this.key = typeof publishableKey === 'string' ? publishableKey.trim() : '';
@@ -33,6 +34,7 @@ export class LeaderboardService {
             && this.key.length > 0 && typeof fetchImpl === 'function';
         this.fetchImpl = fetchImpl;
         this.now = now;
+        this.countryEnabled = countryEnabled;
         // Browsers can throw just from reading localStorage (privacy mode).
         // Keep the entire game usable even if persistent storage is blocked.
         if (storage !== null) {
@@ -253,6 +255,7 @@ export class LeaderboardService {
     }
 
     async #getCountryProof(runId) {
+        if (!this.countryEnabled) return null;
         // Ask our same-origin Vercel Function to sign the player's IP-derived
         // country for this run. On localhost or unsupported networks the
         // response has no proof; scoring remains fully operational.

@@ -230,6 +230,9 @@
   <link rel="stylesheet" href="/src/styles/racing-ui.css" />
 </head>
 <body>
+  <div data-game-ui>
+  <p class="loading-status" data-loading-status role="status">Loading flight…</p>
+  <p class="storage-notice" data-storage-notice role="status" hidden></p>
   <div id="app"></div>
   <div class="speed-lines" data-speed-lines aria-hidden="true"></div>
   <div class="hud" aria-live="polite">
@@ -259,6 +262,7 @@
     <button class="touch-boost" type="button" data-touch-boost>BOOST</button>
   </div>
   <div class="touch-indicator" data-touch-indicator aria-hidden="true"><span class="touch-indicator__thumb" data-touch-indicator-thumb></span></div>
+  <button class="poki-touch-pause" type="button" data-touch-pause hidden>PAUSE</button>
   <div class="state-overlay" data-state-overlay>
     <div class="state-overlay__content glass-panel">
       <div class="state-overlay__hero" data-overlay-hero>
@@ -267,7 +271,7 @@
         <p class="state-overlay__strapline">Fly through the rings. Dodge the barriers. Own the skies.</p>
       </div>
       <h1 class="state-overlay__title is-pulsing" data-state-title>READY FOR TAKEOFF</h1>
-      <p class="state-overlay__message" data-state-message>Use WASD / arrows to steer. Hold Space or Shift to boost.</p>
+      <p class="state-overlay__message" data-state-message>Open Menu → Help &amp; controls to learn how to play.</p>
       <ul class="state-overlay__stats" data-state-stats hidden>
         <li><span>Final Score</span><strong data-final-score>0</strong></li>
         <li><span>Rings</span><strong data-final-rings>0</strong></li>
@@ -340,7 +344,7 @@
       <h2 class="help-dialog__title" id="help-dialog-title">HOW TO PLAY</h2>
       <button class="help-close" type="button" data-help-close aria-label="Close how to play">×</button>
     </div>
-    <p class="help-dialog__intro">Fly through blue and pink rings to earn points. Avoid orange barriers and black hazard rings — either ends your flight. Collect a ring before the deadline expires.</p>
+    <p class="help-dialog__intro">Fly through blue and pink rings to earn points. Avoid orange barriers and red-orange hazard rings — either ends your flight. Collect a ring before the deadline expires.</p>
     <div class="help-dialog__sections">
       <section class="help-dialog__section">
         <h3>On a phone or tablet</h3>
@@ -357,7 +361,7 @@
         <h3>What the rings do</h3>
         <p><strong>Blue ring:</strong> Gives bonus points and a short automatic speed boost.</p>
         <p><strong>Pink ring:</strong> Gives bonus points and a stronger speed surge.</p>
-        <p><strong>Black hazard ring:</strong> Touching it ends your flight, just like a barrier. All points and rings you've already earned stay in your final score.</p>
+        <p><strong>Hazard ring (red-orange):</strong> Touching it ends your flight, just like a barrier. All points and rings you've already earned stay in your final score.</p>
         <p>Collecting more rings also increases your normal speed over time.</p>
         <p><strong>Ring deadline:</strong> Collect any ring within 30 seconds to keep flying. After 20 seconds without a ring, a visible 10-second countdown begins. Every collected ring resets the timer. Pausing also pauses the countdown.</p>
       </section>
@@ -486,6 +490,7 @@
       <footer class="hangar-shell__footer">Elite rewards work in Classic, Daily and Friend Challenge flights when equipped. They grant a small earned advantage; the scoring formula, hazards and leaderboards remain unchanged.</footer>
     </div>
   </dialog>
-  <script type="module" src="/src/main.js"></script>
+  </div>
+  <script type="module" src="/src/boot.js"></script>
 </body>
 </html>

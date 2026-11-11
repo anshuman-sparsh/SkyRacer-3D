@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { PokiAdapter } from '../src/platform/PokiAdapter.js';
 import { createDailyRandom } from '../src/utils/DailyChallenge.js';
+import { FlightObjectives } from '../src/ui/FlightObjectives.js';
+import { FlightFeedback } from '../src/ui/FlightFeedback.js';
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 const source=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
 const start=source.slice(source.indexOf('async function startRunning()'),source.indexOf('\nfunction togglePause()'));
@@ -24,6 +26,7 @@ async function harness({ad=async()=>{},audio=async()=>true}={}) {
         setLaunchPending(){},scoreManager:{getHighScore:()=>0,reset(){}},
         ringGuidance:{hide(){}},ringCollectionDeadline:{reset(){}},trackManager:{reset(){}},
         cameraDynamics:{snapTo(){}},updateHud(){},flightCoach:{beginFlight(){}},flightMilestones:{beginFlight(){}},
+        flightObjectives:new FlightObjectives(),flightFeedback:new FlightFeedback(),
         setGameState(state){c.gameState=state;platform.transition(state);audioEngine.setPaused(state!=='running');},
     };
     vm.createContext(c); vm.runInContext(start,c);
@@ -126,6 +129,19 @@ test('a canceled replay cannot discard the completed score or rebuild its course
     c.trackManager.reset=()=>{throw Error('Canceled course rebuilt');};
     const pending=c.startRunning();c.launchGeneration++;ad.resolve();
     assert.equal(await pending,false);assert.equal(c.scoreManager.currentScore,450);
+});
+
+test('practice result survives pending/canceled ads; only a successful new launch resets it, never resume',async()=>{
+    const ad=deferred();const {c}=await harness({ad:()=>ad.promise});
+    await c.startRunning();c.flightObjectives.finish({rings:3});c.setGameState('terminated');
+    const result=c.flightObjectives.result;
+    const pending=c.startRunning();assert.equal(c.flightObjectives.result,result);
+    c.launchGeneration++;ad.resolve();assert.equal(await pending,false);
+    assert.equal(c.flightObjectives.result,result);assert.equal(c.flightObjectives.completed,1);
+    assert.equal(await c.startRunning(),true);assert.equal(c.flightObjectives.result,null);
+    assert.equal(c.flightObjectives.goal.metric,'seconds');c.flightObjectives.observe({seconds:12});
+    c.flightFeedback.nearMiss(1);c.setGameState('paused');assert.equal(await c.startRunning(),true);
+    assert.equal(c.flightObjectives.value,12);assert.equal(c.flightFeedback.nearMisses,1);
 });
 
 test('Daily retry resets once with the issued date/version and no intermediate random course',async()=>{

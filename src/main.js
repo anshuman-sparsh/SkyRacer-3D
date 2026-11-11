@@ -38,6 +38,9 @@ import { FlightCoach, FlightMilestones } from './ui/FlightCoach.js';
 import { scoreComparison, nextHangarGoal } from './ui/ReplaySummary.js';
 import { createSafeStorage } from './platform/SafeStorage.js';
 import { readQualityProfile } from './core/QualityProfile.js';
+import { FlightObjectives } from './ui/FlightObjectives.js';
+import { FlightFeedback } from './ui/FlightFeedback.js';
+import { ObjectivePanel } from './ui/ObjectivePanel.js';
 
 inject();
 
@@ -300,6 +303,10 @@ const isTouchPrimary = usesTouchControls(window, navigator);
 const coachStorage = platformStorage ?? createSafeStorage({ prefix: 'skyracer_web_coach_v1:' });
 const flightCoach = new FlightCoach(coachStorage, isTouchPrimary, { experienced: classicScoreManager.getHighScore() > 0 });
 const flightMilestones = new FlightMilestones();
+const flightObjectives = new FlightObjectives(coachStorage);
+const objectiveMetrics = { rings: 0, score: 0, seconds: 0 };
+const flightFeedback = new FlightFeedback();
+const objectivePanel = new ObjectivePanel(document.querySelector('[data-personal-objective]'), flightObjectives);
 document.documentElement.dataset.touchControls = String(isTouchPrimary);
 touchPauseButton.hidden = !isTouchPrimary;
 const removeScrollGuard = installScrollGuard(window);
@@ -351,13 +358,13 @@ const STATE_COPY = {
         'FLIGHT PAUSED',
         isTouchPrimary ? 'Tap RESUME FLIGHT to continue.' : 'Press P or select RESUME FLIGHT to continue.',
     ],
-    terminated: ['BARRIER HIT', 'Your score is safe. Steer around orange barriers on your next flight.'],
-    ringTimeout: ['RING TIMER RAN OUT', 'Collect a blue or pink ring within 30 seconds. Every collected ring resets the timer.'],
-    blackRing: ['HAZARD RING HIT', 'Avoid the red-orange X rings — they end your flight. All points and rings you\'ve already earned stay in your final score.'],
+    terminated: ['BARRIER HIT', 'Orange barriers are solid. Move sideways or change height before reaching them. Earned points stay in your final score.'],
+    ringTimeout: ['RING TIMER RAN OUT', '30 active seconds passed without a blue / pink ring. Aim through a ring centre to reset the timer.'],
+    blackRing: ['HAZARD RING HIT', 'Red-orange X rings are hazards, including the centre. Steer around them; collect blue and pink rings instead.'],
 };
 
 function updateReplayProgress() {
-    if (gameState !== 'terminated') return;
+    if (gameState !== 'terminated' && gameState !== 'start') return;
     const goal = nextHangarGoal(localOnly ? localProgress.snapshot() : hangarPanel.progress, localOnly);
     replayProgress.hidden = false;
     replayProgressText.textContent = goal.text;
@@ -375,6 +382,10 @@ function setLaunchPending(pending) {
 }
 
 function updateFlightExperience(delta) {
+    objectiveMetrics.rings = scoreManager.ringsCollected;
+    objectiveMetrics.score = scoreManager.currentScore;
+    objectiveMetrics.seconds = activeRunSeconds;
+    flightObjectives.observe(objectiveMetrics);
     const input = inputManager.state;
     const warning = ringCollectionDeadline.countdownSeconds !== null;
     const hint = warning ? null : flightCoach.advance(delta, {
@@ -386,14 +397,18 @@ function updateFlightExperience(delta) {
             return ahead > 0 && ahead < 45 && Math.abs(ring.position.x - hovercraft.position.x) < 7;
         }),
     });
-    const id = warning ? '' : hint?.id ?? '';
-    if (id !== lastCoachId) {
+    const objectiveHint = warning || hint ? '' : flightObjectives.hint(delta);
+    const id = warning ? '' : hint?.id ?? (objectiveHint ? 'goal' : '');
+    const text = hint?.text ?? objectiveHint;
+    // Goal completion changes the text without changing the hint identity.
+    if (id !== lastCoachId || (id && coachText.textContent !== text)) {
         coachElement.hidden = !id;
-        if (id) { coachIcon.textContent = hint.icon; coachText.textContent = hint.text; }
+        if (id) { coachIcon.textContent = hint?.icon ?? 'GOAL'; coachText.textContent = text; }
         lastCoachId = id;
     }
     const message = flightMilestones.advance(delta, scoreManager.ringsCollected, scoreManager.currentScore);
-    const visible = warning ? '' : message;
+    const feedback = flightFeedback.advance(delta);
+    const visible = warning ? '' : message || feedback;
     if (visible !== lastMilestone) {
         milestoneElement.hidden = !visible;
         milestoneElement.textContent = visible;
@@ -421,12 +436,17 @@ function updateRingDeadlineDisplay() {
 function setGameState(nextState, terminationReason = 'collision') {
     const wasTerminated = gameState === 'terminated';
     gameState = nextState;
+    if (nextState === 'terminated' && !wasTerminated) {
+        flightObjectives.finish({ rings: scoreManager.ringsCollected, score: scoreManager.currentScore, seconds: activeRunSeconds });
+    }
+    objectivePanel.render(nextState);
     if (nextState !== 'running') {
         coachElement.hidden = true; milestoneElement.hidden = true;
         lastCoachId = ''; lastMilestone = '';
     }
     replayComparison.hidden = nextState !== 'terminated';
-    replayProgress.hidden = nextState !== 'terminated';
+    replayProgress.hidden = nextState !== 'terminated' && nextState !== 'start';
+    if (nextState === 'start') updateReplayProgress();
     platform.transition(nextState);
     if (localOnly && nextState === 'terminated' && !wasTerminated) {
         localProgress.recordFlight({ rings: scoreManager.ringsCollected, distance: scoreManager.distance });
@@ -796,6 +816,8 @@ async function startRunning() {
                 : gameMode === 'daily' ? dailyPersonalBest : null;
             flightCoach.beginFlight();
             flightMilestones.beginFlight(runBestBefore);
+            flightObjectives.beginFlight();
+            flightFeedback.beginFlight();
             activeFlightAircraftId = aircraftSelection.activeId;
             activeFlightAbility = eliteAbilityFor(activeFlightAircraftId, aircraftSelection.ownedIds);
             hovercraft.setAppearance(activeFlightAircraftId);
@@ -1177,6 +1199,7 @@ function animate(time = 0) {
             if (!collided) {
                 cameraDynamics.addRingImpulse();
                 audioEngine.playRingChime();
+                flightFeedback.collection(collectedEnergyRings, collectedSurgeRings, earnedSpeedLevels, scoreManager.ringBonus);
             }
             updateHud();
             // Alternate animation names; no synchronous layout read per pickup.
@@ -1200,7 +1223,10 @@ function animate(time = 0) {
         } else {
             scoreManager.update(delta, hovercraft.velocity);
 
-            if (nearMisses > 0) cameraDynamics.addShake(0.28 * nearMisses);
+            if (nearMisses > 0) {
+                cameraDynamics.addShake(0.28 * nearMisses);
+                flightFeedback.nearMiss(nearMisses);
+            }
 
             const isSurging = hovercraft.isSpeedSurging;
             const isBoosting = inputManager.state.boost

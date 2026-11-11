@@ -94,6 +94,12 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
   outline-offset: 3px;
 }
 [hidden] { display: none !important; }
+.personal-objective { max-width: 440px; margin: 10px auto; padding: 9px 12px; border: 1px solid var(--sr-line); border-radius: 10px; text-align: left; overflow-wrap: anywhere; }
+.personal-objective strong { font: 700 11px/1.4 var(--sr-font-data); color: var(--sr-muted); }
+.personal-objective p { margin: 4px 0; font: 550 12px/1.5 var(--sr-font-body); }
+.personal-objective small { display: block; font: 400 11px/1.4 var(--sr-font-body); color: var(--sr-muted); }
+.personal-objective progress { display: block; width: 100%; height: 5px; margin: 6px 0; accent-color: var(--sr-accent); }
+.personal-objective.is-complete strong { color: var(--sr-accent-bright); }
 .flight-coach, .flight-milestone {
   position: fixed; z-index: 3; left: 50%; transform: translateX(-50%);
   max-width: min(460px, calc(100vw - 32px)); pointer-events: none;
@@ -324,6 +330,7 @@ button:focus-visible, input:focus-visible, .state-overlay__action:focus-visible,
   backdrop-filter: blur(9px);
 }
 .state-overlay__content {
+  overscroll-behavior: contain;
   width: min(650px, 100%);
   max-height: calc(100dvh - 28px);
   overflow-y: auto;

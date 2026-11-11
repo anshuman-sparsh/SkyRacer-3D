@@ -4,7 +4,7 @@ const COMPLETE = 15;
 const RING_MILESTONES = [1, 5, 10, 25, 50, 100];
 const HINTS = Object.freeze({
     steer: { id: 'steer', icon: 'WASD / ↑↓←→', text: 'Steer & change height' },
-    rings: { id: 'rings', icon: '○', text: 'Fly through blue / pink rings · 30 seconds per ring' },
+    rings: { id: 'rings', icon: '○', text: 'Aim through centres · blue boosts, pink surges · reset 30 seconds' },
     hazard: { id: 'hazard', icon: '✕', text: 'Red-orange X rings & barriers end your flight' },
     boost: { id: 'boost', icon: 'SPACE / SHIFT', text: 'Hold to boost · release to stop' },
 });

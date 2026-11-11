@@ -7,8 +7,8 @@ export function usesTouchControls(win, nav = {}) {
 
 export function installScrollGuard(win) {
     const onWheel = event => {
-        // Native dialogs scroll internally; overscroll-behavior contains them.
-        if (!event.target?.closest?.('dialog, [data-quick-menu]')) event.preventDefault();
+        // Results can exceed a short viewport; keep their native scrolling too.
+        if (!event.target?.closest?.('dialog, [data-quick-menu], .state-overlay__content')) event.preventDefault();
     };
     win.addEventListener('wheel', onWheel, { passive: false });
     return () => win.removeEventListener('wheel', onWheel);

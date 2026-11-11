@@ -12,7 +12,8 @@ export function scoreComparison(score, previousBest, mode = 'classic', local = f
     const difference = score - best;
     if (difference > 0) return '+' + difference.toLocaleString() + ' above your previous ' + label;
     if (difference === 0) return 'Matched your ' + label + ' · ' + best.toLocaleString();
-    return (-difference).toLocaleString() + ' from your ' + label + ' of ' + best.toLocaleString();
+    return (score > 0 && score >= best * .95 ? 'SO CLOSE · ' : '')
+        + (-difference).toLocaleString() + ' from your ' + label + ' of ' + best.toLocaleString();
 }
 
 const GOALS = [
@@ -32,8 +33,10 @@ export function nextHangarGoal(progress, local = false) {
     if (!goal) return { text: local ? 'All aircraft available in this local edition unlocked.' : 'All aircraft unlocked.', ratio: null };
     const [,name,requirements] = goal;
     const ratio = Math.min(...requirements.map(([key,target]) => Math.min(1,count(progress[key])/target)));
+    const remaining = requirements.filter(([key,target]) => count(progress[key]) < target)
+        .map(([key,target,label]) => (target-count(progress[key])).toLocaleString() + ' ' + label);
     return { ratio, text: (local ? 'Local' : 'Verified') + ' · Next: ' + name + ' · '
         + requirements.map(([key,target,label]) => Math.min(target,count(progress[key])).toLocaleString()
             + ' / ' + target.toLocaleString() + ' ' + label).join(' · ')
-        + (ratio === 1 ? ' · Awaiting unlock confirmation' : '') };
+        + (ratio === 1 ? ' · Awaiting unlock confirmation' : ' · Still needed: ' + remaining.join(' + ')) };
 }

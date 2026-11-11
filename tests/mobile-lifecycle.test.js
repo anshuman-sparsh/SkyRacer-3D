@@ -9,7 +9,7 @@ const frame=source.slice(source.indexOf('function animate('),source.indexOf('\nf
 test('fullscreen Hangar skips background rendering; standard paused scene renders at most 10 Hz',()=>{
     let renders=0,input=0,scheduled=0;
     const c={clock:{getDelta:()=>.016},document:{hidden:false},platform:{blocked:false},appDisposed:false,
-        gameState:'paused',hangarPanel:{dialog:{open:true}},lastIdleFrameAt:-Infinity,
+        gameState:'paused',hangarPanel:{dialog:{open:true}},renderRecovery:{lost:false},lastIdleFrameAt:-Infinity,
         requestAnimationFrame:()=>++scheduled,inputManager:{update(){input++;}},scene:{},camera:{},
         renderer:{render(){renders++;}},updateTrackLightResponse(){},collisionDebug:null};
     vm.createContext(c);vm.runInContext(frame,c);c.animate(0);assert.equal(renders,0);assert.equal(input,0);

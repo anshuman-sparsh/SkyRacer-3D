@@ -39,7 +39,7 @@ test('actual terminal frame credits final rings/time exactly once without changi
         const objectives=new FlightObjectives();if(!collision)objectives.completed=1;objectives.beginFlight();
         const score=new ScoreManager({recordsEnabled:false}),deadline=new RingCollectionDeadline();deadline.advance(29);
         const c={clock:{getDelta:()=>1},document:{hidden:false},platform:{blocked:false},appDisposed:false,
-            hangarPanel:{dialog:{open:false}},gameState:'running',activeRunSeconds:29,
+            hangarPanel:{dialog:{open:false}},renderRecovery:{lost:false},gameState:'running',activeRunSeconds:29,
             inputManager:{state:{},update(){}},hovercraft:{position:{},velocity:{z:-28},update(){},
                 activateEnergyBoost(){},setSpeedProgressionLevel(){},activateSpeedSurge(){},spinOut(){}},
             starField:{update(){}},activeFlightAbility:{ringCaptureRadius:.7,energyBoostDuration:4.5},

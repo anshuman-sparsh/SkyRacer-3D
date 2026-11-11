@@ -14,7 +14,7 @@ export class LocalProgress {
             const saved = JSON.parse(storage.getItem(KEY) ?? 'null');
             this.data = { ...empty(), totalRings: Math.floor(number(saved?.totalRings)),
                 totalDistance: number(saved?.totalDistance), verifiedRuns: Math.floor(number(saved?.verifiedRuns)),
-                daily: saved?.daily && typeof saved.daily === 'object' ? saved.daily : {},
+                daily: saved?.daily && typeof saved.daily === 'object' && !Array.isArray(saved.daily) ? saved.daily : {},
                 dailyDates: Array.isArray(saved?.dailyDates) ? saved.dailyDates.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)) : [] };
         } catch { this.data = empty(); }
     }

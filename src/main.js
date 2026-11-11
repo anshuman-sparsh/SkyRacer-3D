@@ -41,6 +41,7 @@ import { readQualityProfile } from './core/QualityProfile.js';
 import { FlightObjectives } from './ui/FlightObjectives.js';
 import { FlightFeedback } from './ui/FlightFeedback.js';
 import { ObjectivePanel } from './ui/ObjectivePanel.js';
+import { WebGLRecovery } from './core/WebGLRecovery.js';
 
 inject();
 
@@ -574,9 +575,12 @@ function setGameState(nextState, terminationReason = 'collision') {
         && scoreManager.currentScore > 0) {
         // A server-registered nickname allows fully automatic daily submissions.
         // New pilots choose their permanent nickname from the Daily panel.
-        void submitDailyScore(activeDailyRun.nickname).catch((error) => {
-            dailyLastError = error.message;
-            updateModeDisplays();
+        const finishedRun = activeDailyRun;
+        void submitDailyScore(finishedRun.nickname).catch((error) => {
+            if (activeDailyRun === finishedRun) {
+                dailyLastError = error.message;
+                updateModeDisplays();
+            }
         });
     }
 
@@ -721,17 +725,19 @@ async function submitDailyScore(nickname) {
             nickname, score: scoreManager.currentScore,
             rings: scoreManager.ringsCollected, distance: scoreManager.distance,
         });
-        dailyPersonalBest = result.personalBest;
         void hangarPanel.refreshProgress();
-        dailyLastError = '';
         if (activeDailyRun === run) {
+            dailyPersonalBest = result.personalBest;
+            dailyLastError = '';
             updateModeDisplays();
             if (dailyPanel.dialog.open) void dailyPanel.refresh();
         }
         return result;
     } catch (error) {
-        dailyLastError = error.message;
-        if (activeDailyRun === run) updateModeDisplays();
+        if (activeDailyRun === run) {
+            dailyLastError = error.message;
+            updateModeDisplays();
+        }
         throw error;
     } finally {
         dailySubmitting = false;
@@ -753,7 +759,7 @@ function beginOnlineRun() {
 
 async function startRunning() {
     // Ignore duplicate clicks and key presses during async run registration.
-    if (startTransitionPending || platform.blocked || appDisposed || document.hidden || gameState === 'running'
+    if (startTransitionPending || platform.blocked || appDisposed || renderRecovery.lost || document.hidden || gameState === 'running'
         || (friendStartPending && gameMode !== 'friend')) return false;
     if (helpDialog.open || leaderboardDialog.open || hangarPanel.dialog.open || quickMenu.opened
         || (dailyPanel.dialog.open && gameMode !== 'daily')
@@ -827,7 +833,7 @@ async function startRunning() {
         if (!friendPanel.dialog.open && !dailyPanel.dialog.open
             && document.activeElement?.matches?.(
                 '[data-daily-open], [data-daily-menu], [data-quick-open], ' +
-                '[data-start-flight], [data-restart], [data-pause-toggle]'
+                '[data-start-flight], [data-restart], [data-pause-toggle], [data-touch-pause]'
             )) {
             renderer.domElement.tabIndex = 0;
             renderer.domElement.focus({ preventScroll: true });
@@ -1136,7 +1142,7 @@ function animate(time = 0) {
     const frameDelta = clock.getDelta();
     const delta = Math.min(frameDelta, 0.05);
     if (appDisposed) return;
-    if (document.hidden || platform.blocked || hangarPanel.dialog.open) {
+    if (document.hidden || platform.blocked || hangarPanel.dialog.open || renderRecovery.lost) {
         animationFrameId = requestAnimationFrame(animate);
         return;
     }
@@ -1337,6 +1343,7 @@ function openDailyResults(event) {
 function disposeApp() {
     if (appDisposed) return;
     appDisposed = true;
+    renderRecovery.dispose();
     platform.dispose();
     removeScrollGuard();
     scoreManager.persistRecords();
@@ -1432,6 +1439,20 @@ window.addEventListener('pagehide', handlePageHide);
 window.addEventListener('pageshow', handlePageShow);
 const viewportObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(handleResize) : null;
 viewportObserver?.observe(container);
+const renderRecovery = new WebGLRecovery(renderer.domElement, {
+    onLost: () => {
+        suspendForBackground();
+        const status = document.querySelector('[data-loading-status]');
+        status.textContent = 'Graphics interrupted. Waiting for recovery; reload if this continues.';
+        status.hidden = false;
+    },
+    onRestored: () => {
+        document.querySelector('[data-loading-status]').hidden = true;
+        clock.getDelta();
+        handleResize();
+        if (!document.hidden && hangarPanel.dialog.open) hangarPanel.viewer.open(hangarPanel.previewId);
+    },
+});
 setGameState('start');
 if (leaderboard.enabled || localOnly) {
     void hangarPanel.refreshProgress();

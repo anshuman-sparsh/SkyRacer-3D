@@ -35,3 +35,5 @@ jobs:
         run: npm ci
       - name: Run all tests and production build
         run: npm run build
+      - name: Build and verify offline Poki release package
+        run: npm run package:poki

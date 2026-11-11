@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { buildPolicy, pokiHtml } from './src/platform/BuildPolicy.js';
+import { runtimeNotices } from './scripts/third-party-notices.js';
 
 export default defineConfig(({ mode }) => {
     const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env };
@@ -17,6 +18,7 @@ export default defineConfig(({ mode }) => {
     define: { __POKI_LOCAL_ONLY__: JSON.stringify(policy.localOnly),
         __POKI_PRIVACY_URL__: JSON.stringify(policy.privacyUrl) },
     plugins: [{ name: 'skyracer-platform', generateBundle(_, bundle) {
+        this.emitFile({type:'asset',fileName:'THIRD_PARTY_NOTICES.txt',source:runtimeNotices({poki:policy.poki})});
         if (!policy.poki) return;
         const forbidden = ['@vercel/analytics', 'GameplayAnalyticsService.js', 'CollisionDebug.js'];
         if (policy.localOnly) forbidden.push('services/LeaderboardService.js', 'services/ClassicAutoSubmit.js',

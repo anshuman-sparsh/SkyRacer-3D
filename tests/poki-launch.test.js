@@ -17,7 +17,7 @@ async function harness({ad=async()=>{},audio=async()=>true}={}) {
     const closed=()=>({dialog:{open:false}});
     const audioEngine={paused:true,start:audio,setPaused(value){this.paused=value;}};
     const c={platform,isPoki:true,document:{hidden:false,activeElement:null},startTransitionPending:false,
-        gameState:'start',gameMode:'classic',appDisposed:false,friendStartPending:false,launchGeneration:0,
+        gameState:'start',gameMode:'classic',appDisposed:false,friendStartPending:false,launchGeneration:0,renderRecovery:{lost:false},
         helpDialog:{open:false},leaderboardDialog:{open:false},hangarPanel:closed(),quickMenu:{opened:false},
         dailyPanel:closed(),friendPanel:closed(),audioEngine,
         aircraftSelection:{activeId:'cyan-striker',ownedIds:['cyan-striker','ember-striker']},
@@ -67,6 +67,15 @@ test('no flight starts behind menus and audio initialization failure still permi
     c.helpDialog.open=false; assert.equal(await c.startRunning(),true);
 });
 
+test('lost graphics blocks launches; touch Pause resume restores keyboard focus to the canvas',async()=>{
+    const {c}=await harness();c.renderRecovery.lost=true;
+    assert.equal(await c.startRunning(),false);c.renderRecovery.lost=false;
+    await c.startRunning();c.setGameState('paused');let focus=0;
+    c.document.activeElement={matches:selector=>selector.includes('[data-touch-pause]')};
+    c.renderer={domElement:{focus(){focus++;}}};
+    assert.equal(await c.startRunning(),true);assert.equal(focus,1);
+});
+
 test('a canceled ad retains launch ownership until delayed audio initialization settles',async()=>{
     const ad=deferred(),audio=deferred(); let starts=0;
     const {c}=await harness({ad:()=>ad.promise,audio:()=>++starts===1?Promise.resolve(true):audio.promise});
@@ -84,7 +93,7 @@ test('actual frame loop cannot advance physics or render while an ad is pending 
     for(const flag of ['ad','hidden']) {
         let nextFrames=0;
         const c={clock:{getDelta:()=>.05},document:{hidden:flag==='hidden'},platform:{blocked:flag==='ad'},appDisposed:false,
-            gameState:'terminated',isPoki:true,animationFrameId:0,
+            gameState:'terminated',isPoki:true,animationFrameId:0,renderRecovery:{lost:false},
             requestAnimationFrame:()=>++nextFrames,
             inputManager:{update(){throw Error('Input advanced');}},
             hovercraft:{update(){throw Error('Physics advanced');}},renderer:{render(){throw Error('Rendered underneath ad');}}};
@@ -174,7 +183,7 @@ test('settled game-over frames stop render/physics work but a resize can redraw 
     const animate=source.slice(source.indexOf('function animate('),source.indexOf('\nfunction resizeViewport()'));
     let renders=0;
     const c={clock:{getDelta:()=>.016},document:{hidden:false},platform:{blocked:false},appDisposed:false,
-        gameState:'terminated',isPoki:true,scene:{},camera:{},hangarPanel:{dialog:{open:false}},terminalAnimationSeconds:3,terminalFrameDirty:false,
+        gameState:'terminated',isPoki:true,scene:{},camera:{},hangarPanel:{dialog:{open:false}},renderRecovery:{lost:false},terminalAnimationSeconds:3,terminalFrameDirty:false,
         animationFrameId:0,requestAnimationFrame:()=>1,
         inputManager:{update(){throw Error('Idle input work');}},renderer:{render(){renders++;}}};
     vm.createContext(c);vm.runInContext(animate,c);c.animate(5000);assert.equal(renders,0);

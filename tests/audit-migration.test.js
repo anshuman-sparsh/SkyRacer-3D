@@ -44,6 +44,30 @@ before(async () => {
 });
 after(() => db.close());
 
+test('combined leaderboard includes historical and new verified modes while preserving the earliest tied best', async () => {
+    const pilot = '00000000-0000-4000-8000-000000000099';
+    await db.query('insert into auth.users values($1)', [pilot]);
+    await db.query("insert into public.player_profiles (user_id,nickname) values($1,'CombinedPilot')", [pilot]);
+    const record = (mode, run, score, date) => db.query(
+        'insert into public.hangar_verified_runs(mode,run_id,user_id,score,rings,distance,verified_at) values($1,$2,$3,$4,174,23080.426541,$5)',
+        [mode, id(run), pilot, score, date]);
+    await record('classic', 900, 109425, '2026-11-23');
+    await record('friend', 901, 239504, '2026-11-24');
+    await db.exec(migration('20261124090000_all_time_verified_scores.sql'));
+    const read = async () => (await db.query('select public.all_time_leaderboard_snapshot($1) as data',[pilot])).rows[0].data;
+    assert.equal((await read()).me.score, 239504);
+    assert.equal((await read()).me.mode, 'friend');
+    await record('daily', 902, 239503, '2026-11-25');
+    await record('daily', 903, 239504, '2026-11-26');
+    assert.equal((await read()).me.runId, id(901));
+    await record('daily', 904, 250000, '2026-11-27');
+    const snapshot = await read();
+    assert.equal(snapshot.me.score, 250000);
+    assert.equal(snapshot.entries.filter(entry => entry.nickname === 'CombinedPilot').length, 1);
+    assert.equal((await db.query("select has_function_privilege('authenticated','public.all_time_leaderboard_snapshot(uuid)','execute') as allowed")).rows[0].allowed,false);
+    await db.query('delete from auth.users where id=$1', [pilot]);
+});
+
 test('migration repairs a real PostgreSQL rounding rejection without losing replay protection', async () => {
     await createRun(id(1));
     await submitGlobal(id(1));

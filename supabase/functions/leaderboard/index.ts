@@ -44,7 +44,8 @@ export default {
     // Reads require a player session but do not allow direct table access.
     if (request.method === 'GET') {
       try {
-        return Response.json(await readLeaderboard(ctx.supabaseAdmin, playerId));
+        const allTime = new URL(request.url).searchParams.get('scope') === 'all-time';
+        return Response.json(await readLeaderboard(ctx.supabaseAdmin, playerId, allTime));
       } catch (error) {
         return invalid(error.message, 503);
       }

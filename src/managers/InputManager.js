@@ -27,6 +27,7 @@ export class InputManager {
     } = {}) {
         this.eventTarget = eventTarget;
         this.enabled = true;
+        this.pressedKeys = new Set();
         this.touchSurface = touchSurface;
         this.boostButton = boostButton;
         this.touchIndicator = touchIndicator;
@@ -62,16 +63,23 @@ export class InputManager {
         this.handlePointerEnd = (event) => this.#onPointerEnd(event);
         this.handleBoostPress = (event) => this.#onBoostPress(event);
         this.handleBoostRelease = (event) => this.#onBoostRelease(event);
+        this.handleGlobalPointerEnd = event => {
+            this.#onPointerEnd(event); this.#onBoostRelease(event);
+        };
+        this.eventTarget.addEventListener('pointermove', this.handlePointerMove, { passive: false });
+        this.eventTarget.addEventListener('pointerup', this.handleGlobalPointerEnd);
+        this.eventTarget.addEventListener('pointercancel', this.handleGlobalPointerEnd);
         // A held BOOST is a game control, not a request to select its label
         // or open the mobile browser's text editing / context menu.
         this.handleBoostSelection = (event) => event.preventDefault();
 
         if (this.touchSurface) {
             this.touchSurface.addEventListener('pointerdown', this.handlePointerDown);
-            this.touchSurface.addEventListener('pointermove', this.handlePointerMove);
             this.touchSurface.addEventListener('pointerup', this.handlePointerEnd);
             this.touchSurface.addEventListener('pointercancel', this.handlePointerEnd);
             this.touchSurface.addEventListener('lostpointercapture', this.handlePointerEnd);
+            this.touchSurface.addEventListener('contextmenu', this.handleBoostSelection);
+            this.touchSurface.addEventListener('selectstart', this.handleBoostSelection);
         }
 
         if (this.boostButton) {
@@ -89,7 +97,10 @@ export class InputManager {
         const action = KEY_ACTIONS[event.code];
         // Key release still belongs to the game if focus moved after keydown.
         // Do not cancel native behavior on the newly focused control.
-        if (!isPressed && action) this.state[action] = false;
+        if (!isPressed && action) {
+            this.pressedKeys.delete(event.code);
+            this.#syncKeyAction(action);
+        }
         // Gameplay shortcuts must never steal keys from editable controls.
         // This covers Classic nickname registration and all present/future
         // input fields, including custom textboxes and IME composition.
@@ -110,7 +121,27 @@ export class InputManager {
         if (!action) return;
 
         event.preventDefault();
-        this.state[action] = isPressed;
+        if (isPressed) this.pressedKeys.add(event.code);
+        this.#syncKeyAction(action);
+    }
+
+    #syncKeyAction(action) {
+        let held = false;
+        for (const code of this.pressedKeys) {
+            if (KEY_ACTIONS[code] === action) { held = true; break; }
+        }
+        this.state[action] = held || (action === 'boost' && this.boostPointerId !== null);
+        if (action === 'boost') this.boostButton?.classList?.toggle?.('is-active', this.state.boost);
+    }
+
+    #capture(surface, id) {
+        try { surface?.setPointerCapture?.(id); } catch { /* Global end listener still releases the gesture. */ }
+    }
+
+    #release(surface, id) {
+        if (id === null) return;
+        try { if (surface?.hasPointerCapture?.(id)) surface.releasePointerCapture(id); }
+        catch { /* A detached surface can already have lost capture. */ }
     }
 
     #onPointerDown(event) {
@@ -121,7 +152,7 @@ export class InputManager {
         this.controlPointerId = event.pointerId;
         this.touchOrigin.x = event.clientX;
         this.touchOrigin.y = event.clientY;
-        this.touchSurface.setPointerCapture?.(event.pointerId);
+        this.#capture(this.touchSurface, event.pointerId);
         this.#showTouchIndicator();
         this.#updateTouchAxes(event);
     }
@@ -137,6 +168,7 @@ export class InputManager {
         if (event.pointerId !== this.controlPointerId) return;
 
         this.controlPointerId = null;
+        this.#release(this.touchSurface, event.pointerId);
         this.targetSteer = 0;
         this.targetPitch = 0;
         this.thumbX = 0;
@@ -208,15 +240,15 @@ export class InputManager {
 
         this.boostPointerId = event.pointerId;
         this.state.boost = true;
-        this.boostButton.setPointerCapture?.(event.pointerId);
+        this.#capture(this.boostButton, event.pointerId);
         this.boostButton.classList.add('is-active');
     }
 
     #onBoostRelease(event) {
         if (event.pointerId !== this.boostPointerId) return;
         this.boostPointerId = null;
-        this.state.boost = false;
-        this.boostButton.classList.remove('is-active');
+        this.#release(this.boostButton, event.pointerId);
+        this.#syncKeyAction('boost');
     }
 
     setEnabled(enabled) {
@@ -224,19 +256,13 @@ export class InputManager {
         if (!this.enabled) this.reset();
     }
 
-    reset() {
-        if (this.controlPointerId !== null && this.touchSurface?.hasPointerCapture?.(this.controlPointerId)) {
-            this.touchSurface.releasePointerCapture(this.controlPointerId);
-        }
-        if (this.boostPointerId !== null && this.boostButton?.hasPointerCapture?.(this.boostPointerId)) {
-            this.boostButton.releasePointerCapture(this.boostPointerId);
-        }
-
-        this.state.moveLeft = false;
-        this.state.moveRight = false;
-        this.state.moveUp = false;
-        this.state.moveDown = false;
-        this.state.boost = false;
+    cancelPointers() {
+        const controlId = this.controlPointerId, boostId = this.boostPointerId;
+        this.controlPointerId = null;
+        this.boostPointerId = null;
+        this.#release(this.touchSurface, controlId);
+        this.#release(this.boostButton, boostId);
+        this.#syncKeyAction('boost');
         this.state.steer = 0;
         this.state.pitch = 0;
         this.targetSteer = 0;
@@ -244,23 +270,30 @@ export class InputManager {
         this.thumbX = 0;
         this.thumbY = 0;
         this.isThumbDirty = true;
-        this.controlPointerId = null;
-        this.boostPointerId = null;
         this.#hideTouchIndicator();
-        this.boostButton?.classList.remove('is-active');
+    }
+
+    reset() {
+        this.pressedKeys.clear();
+        this.cancelPointers();
+        for (const action of ['moveLeft', 'moveRight', 'moveUp', 'moveDown', 'boost']) this.state[action] = false;
     }
 
     destroy() {
         this.eventTarget.removeEventListener('keydown', this.handleKeyDown);
         this.eventTarget.removeEventListener('keyup', this.handleKeyUp);
         window.removeEventListener('blur', this.handleBlur);
+        this.eventTarget.removeEventListener('pointermove', this.handlePointerMove);
+        this.eventTarget.removeEventListener('pointerup', this.handleGlobalPointerEnd);
+        this.eventTarget.removeEventListener('pointercancel', this.handleGlobalPointerEnd);
 
         if (this.touchSurface) {
             this.touchSurface.removeEventListener('pointerdown', this.handlePointerDown);
-            this.touchSurface.removeEventListener('pointermove', this.handlePointerMove);
             this.touchSurface.removeEventListener('pointerup', this.handlePointerEnd);
             this.touchSurface.removeEventListener('pointercancel', this.handlePointerEnd);
             this.touchSurface.removeEventListener('lostpointercapture', this.handlePointerEnd);
+            this.touchSurface.removeEventListener('contextmenu', this.handleBoostSelection);
+            this.touchSurface.removeEventListener('selectstart', this.handleBoostSelection);
         }
 
         if (this.boostButton) {

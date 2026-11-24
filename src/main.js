@@ -37,6 +37,11 @@ import { CollisionDebug } from './utils/CollisionDebug.js';
 import { FlightCoach, FlightMilestones } from './ui/FlightCoach.js';
 import { scoreComparison, nextHangarGoal } from './ui/ReplaySummary.js';
 import { createSafeStorage } from './platform/SafeStorage.js';
+import { readQualityProfile } from './core/QualityProfile.js';
+import { FlightObjectives } from './ui/FlightObjectives.js';
+import { FlightFeedback } from './ui/FlightFeedback.js';
+import { ObjectivePanel } from './ui/ObjectivePanel.js';
+import { WebGLRecovery } from './core/WebGLRecovery.js';
 
 inject();
 
@@ -46,8 +51,8 @@ const SPEEDOMETER_MAX_KMH = 180;
 const HUD_UPDATE_INTERVAL = 1 / 20;
 // Preserve the full skyline on desktop while reducing decorative work on touch
 // devices and narrow viewports; gameplay objects are never affected.
-const reducedScenery = usesTouchControls(window, navigator)
-    || Math.min(window.innerWidth, window.innerHeight) < 600;
+const quality = readQualityProfile(window, navigator);
+const reducedScenery = quality.reducedScenery;
 
 const container = document.querySelector('#app');
 const renderer = createRenderer(container);
@@ -78,7 +83,7 @@ const friendService = new FriendChallengeService(leaderboard);
 const analytics = new GameplayAnalyticsService({
     submitEvent: leaderboard.enabled ? (event) => leaderboard.sendGameplayEvent(event) : null,
 });
-const speedParticles = new SpeedParticles();
+const speedParticles = new SpeedParticles({ count: quality.speedParticles });
 const audioEngine = new AudioEngine();
 scene.add(hovercraft);
 scene.add(ringGuidance);
@@ -145,6 +150,7 @@ const coachIcon = document.querySelector('[data-coach-icon]');
 const coachText = document.querySelector('[data-coach-text]');
 const milestoneElement = document.querySelector('[data-flight-milestone]');
 const replayComparison = document.querySelector('[data-replay-comparison]');
+const friendResultNotice = document.querySelector('[data-last-friend-result]');
 const replayProgress = document.querySelector('[data-replay-progress]');
 const replayProgressText = document.querySelector('[data-replay-progress-text]');
 const replayProgressBar = document.querySelector('[data-replay-progress-bar]');
@@ -158,6 +164,7 @@ const inputManager = new InputManager(window, {
 
 let animationFrameId = 0;
 let lastIdleFrameAt = -Infinity;
+let lastViewportAspect = container.clientWidth / Math.max(container.clientHeight, 1);
 let gameState = 'start';
 let gameMode = 'classic';
 // One server-authorized equipment snapshot per flight; resumes never swap abilities.
@@ -166,7 +173,7 @@ let activeFlightAbility = eliteAbilityFor(activeFlightAircraftId);
 let activeDailyRun = null;
 let activeFriendRun = null;
 let lastClassicRunId = null;
-let friendSubmitting = false;
+let latestFriendResult = null;
 let friendStartPending = false;
 let dailySubmitting = false;
 let dailyPersonalBest = null;
@@ -298,9 +305,13 @@ const isTouchPrimary = usesTouchControls(window, navigator);
 const coachStorage = platformStorage ?? createSafeStorage({ prefix: 'skyracer_web_coach_v1:' });
 const flightCoach = new FlightCoach(coachStorage, isTouchPrimary, { experienced: classicScoreManager.getHighScore() > 0 });
 const flightMilestones = new FlightMilestones();
+const flightObjectives = new FlightObjectives(coachStorage);
+const objectiveMetrics = { rings: 0, score: 0, seconds: 0 };
+const flightFeedback = new FlightFeedback();
+const objectivePanel = new ObjectivePanel(document.querySelector('[data-personal-objective]'), flightObjectives);
 document.documentElement.dataset.touchControls = String(isTouchPrimary);
-touchPauseButton.hidden = !isPoki || !isTouchPrimary;
-const removeScrollGuard = isPoki ? installScrollGuard(window) : () => {};
+touchPauseButton.hidden = !isTouchPrimary;
+const removeScrollGuard = installScrollGuard(window);
 // SDK-owned ad overlays remain outside this game-owned interaction boundary.
 const gameUi = isPoki ? [document.querySelector('[data-game-ui]')] : [];
 platform.onBlocked = blocked => {
@@ -349,13 +360,13 @@ const STATE_COPY = {
         'FLIGHT PAUSED',
         isTouchPrimary ? 'Tap RESUME FLIGHT to continue.' : 'Press P or select RESUME FLIGHT to continue.',
     ],
-    terminated: ['BARRIER HIT', 'Your score is safe. Steer around orange barriers on your next flight.'],
-    ringTimeout: ['RING TIMER RAN OUT', 'Collect a blue or pink ring within 30 seconds. Every collected ring resets the timer.'],
-    blackRing: ['HAZARD RING HIT', 'Avoid the red-orange X rings — they end your flight. All points and rings you\'ve already earned stay in your final score.'],
+    terminated: ['BARRIER HIT', 'Orange barriers are solid. Move sideways or change height before reaching them. Earned points stay in your final score.'],
+    ringTimeout: ['RING TIMER RAN OUT', '30 active seconds passed without a blue / pink ring. Aim through a ring centre to reset the timer.'],
+    blackRing: ['HAZARD RING HIT', 'Red-orange X rings are hazards, including the centre. Steer around them; collect blue and pink rings instead.'],
 };
 
 function updateReplayProgress() {
-    if (gameState !== 'terminated') return;
+    if (gameState !== 'terminated' && gameState !== 'start') return;
     const goal = nextHangarGoal(localOnly ? localProgress.snapshot() : hangarPanel.progress, localOnly);
     replayProgress.hidden = false;
     replayProgressText.textContent = goal.text;
@@ -373,6 +384,10 @@ function setLaunchPending(pending) {
 }
 
 function updateFlightExperience(delta) {
+    objectiveMetrics.rings = scoreManager.ringsCollected;
+    objectiveMetrics.score = scoreManager.currentScore;
+    objectiveMetrics.seconds = activeRunSeconds;
+    flightObjectives.observe(objectiveMetrics);
     const input = inputManager.state;
     const warning = ringCollectionDeadline.countdownSeconds !== null;
     const hint = warning ? null : flightCoach.advance(delta, {
@@ -384,14 +399,18 @@ function updateFlightExperience(delta) {
             return ahead > 0 && ahead < 45 && Math.abs(ring.position.x - hovercraft.position.x) < 7;
         }),
     });
-    const id = warning ? '' : hint?.id ?? '';
-    if (id !== lastCoachId) {
+    const objectiveHint = warning || hint ? '' : flightObjectives.hint(delta);
+    const id = warning ? '' : hint?.id ?? (objectiveHint ? 'goal' : '');
+    const text = hint?.text ?? objectiveHint;
+    // Goal completion changes the text without changing the hint identity.
+    if (id !== lastCoachId || (id && coachText.textContent !== text)) {
         coachElement.hidden = !id;
-        if (id) { coachIcon.textContent = hint.icon; coachText.textContent = hint.text; }
+        if (id) { coachIcon.textContent = hint?.icon ?? 'GOAL'; coachText.textContent = text; }
         lastCoachId = id;
     }
     const message = flightMilestones.advance(delta, scoreManager.ringsCollected, scoreManager.currentScore);
-    const visible = warning ? '' : message;
+    const feedback = flightFeedback.advance(delta);
+    const visible = warning ? '' : message || feedback;
     if (visible !== lastMilestone) {
         milestoneElement.hidden = !visible;
         milestoneElement.textContent = visible;
@@ -416,15 +435,29 @@ function updateRingDeadlineDisplay() {
     ringDeadlineElement.classList.toggle('is-critical', remaining <= 3);
 }
 
+function renderFriendResult() {
+    const result = latestFriendResult;
+    friendResultNotice.hidden = !result || (gameState !== 'start' && !(gameState === 'terminated' && gameMode === 'friend'));
+    if (!friendResultNotice.hidden) {
+        friendResultNotice.textContent = `Friend Challenge · ${result.score.toLocaleString()} points · ${result.status}`;
+    }
+}
+
 function setGameState(nextState, terminationReason = 'collision') {
     const wasTerminated = gameState === 'terminated';
     gameState = nextState;
+    if (nextState === 'terminated' && !wasTerminated) {
+        flightObjectives.finish({ rings: scoreManager.ringsCollected, score: scoreManager.currentScore, seconds: activeRunSeconds });
+    }
+    objectivePanel.render(nextState);
     if (nextState !== 'running') {
         coachElement.hidden = true; milestoneElement.hidden = true;
         lastCoachId = ''; lastMilestone = '';
     }
-    replayComparison.hidden = nextState !== 'terminated';
-    replayProgress.hidden = nextState !== 'terminated';
+    replayComparison.hidden = nextState !== 'terminated' || gameMode === 'friend';
+    renderFriendResult();
+    replayProgress.hidden = nextState !== 'terminated' && nextState !== 'start';
+    if (nextState === 'start') updateReplayProgress();
     platform.transition(nextState);
     if (localOnly && nextState === 'terminated' && !wasTerminated) {
         localProgress.recordFlight({ rings: scoreManager.ringsCollected, distance: scoreManager.distance });
@@ -504,6 +537,9 @@ function setGameState(nextState, terminationReason = 'collision') {
     if (copy) {
         stateTitle.textContent = copy[0];
         stateMessage.textContent = copy[1];
+        if (isTerminated && gameMode === 'friend' && terminationReason === 'collision') {
+            stateMessage.textContent = 'Steer around orange barriers on your next flight.';
+        }
     }
 
     updateModeDisplays();
@@ -530,31 +566,40 @@ function setGameState(nextState, terminationReason = 'collision') {
                 });
         }
     }
-    if (isTerminated && gameMode === 'friend' && activeFriendRun && !friendSubmitting) {
+    if (isTerminated && !wasTerminated && gameMode === 'friend' && activeFriendRun) {
         const finishedRun = activeFriendRun;
-        friendSubmitting = true;
+        const receipt = { score: scoreManager.currentScore, status: 'Verifying…' };
+        latestFriendResult = receipt;
+        renderFriendResult();
         friendPanel.outcome.textContent = 'Verifying your friend challenge result…';
         void friendService.finish(finishedRun.runId, {
             score: scoreManager.currentScore, rings: scoreManager.ringsCollected,
             distance: scoreManager.distance,
         }).then(result => {
+            receipt.status = result.won ? 'Verified win' : 'Verified finish · target not beaten';
+            renderFriendResult();
+            void hangarPanel.refreshProgress();
             if (activeFriendRun === finishedRun) {
-                friendPanel.setVerifiedResult(result);
-                void hangarPanel.refreshProgress();
+                friendPanel.setVerifiedResult({ ...result, score: receipt.score });
             }
         }).catch(error => {
+            receipt.status = 'Could not confirm the result: ' + error.message;
+            renderFriendResult();
             if (activeFriendRun === finishedRun) friendPanel.outcome.textContent =
                 'Could not verify this result: ' + error.message;
-        }).finally(() => { friendSubmitting = false; });
+        });
     }
     if (isTerminated && gameMode === 'daily' && activeDailyRun
         && !activeDailyRun.submitted && activeDailyRun.nickname
         && scoreManager.currentScore > 0) {
         // A server-registered nickname allows fully automatic daily submissions.
         // New pilots choose their permanent nickname from the Daily panel.
-        void submitDailyScore(activeDailyRun.nickname).catch((error) => {
-            dailyLastError = error.message;
-            updateModeDisplays();
+        const finishedRun = activeDailyRun;
+        void submitDailyScore(finishedRun.nickname).catch((error) => {
+            if (activeDailyRun === finishedRun) {
+                dailyLastError = error.message;
+                updateModeDisplays();
+            }
         });
     }
 
@@ -640,7 +685,6 @@ function returnToClassic() {
         || (gameState !== 'start' && gameState !== 'terminated')) return;
     activeDailyRun = null;
     activeFriendRun = null;
-    friendSubmitting = false;
     dailySubmitting = false;
     dailyLastError = '';
     gameMode = 'classic';
@@ -677,7 +721,6 @@ async function launchFriendChallenge(challenge) {
         activeDailyRun = null;
         resetForNewMode();
         activeFriendRun = registered;
-        friendSubmitting = false;
         friendPanel.setVerifiedResult(null);
         return startRunning();
     } finally {
@@ -699,17 +742,19 @@ async function submitDailyScore(nickname) {
             nickname, score: scoreManager.currentScore,
             rings: scoreManager.ringsCollected, distance: scoreManager.distance,
         });
-        dailyPersonalBest = result.personalBest;
         void hangarPanel.refreshProgress();
-        dailyLastError = '';
         if (activeDailyRun === run) {
+            dailyPersonalBest = result.personalBest;
+            dailyLastError = '';
             updateModeDisplays();
             if (dailyPanel.dialog.open) void dailyPanel.refresh();
         }
         return result;
     } catch (error) {
-        dailyLastError = error.message;
-        if (activeDailyRun === run) updateModeDisplays();
+        if (activeDailyRun === run) {
+            dailyLastError = error.message;
+            updateModeDisplays();
+        }
         throw error;
     } finally {
         dailySubmitting = false;
@@ -731,7 +776,7 @@ function beginOnlineRun() {
 
 async function startRunning() {
     // Ignore duplicate clicks and key presses during async run registration.
-    if (startTransitionPending || platform.blocked || appDisposed || document.hidden || gameState === 'running'
+    if (startTransitionPending || platform.blocked || appDisposed || renderRecovery.lost || document.hidden || gameState === 'running'
         || (friendStartPending && gameMode !== 'friend')) return false;
     if (helpDialog.open || leaderboardDialog.open || hangarPanel.dialog.open || quickMenu.opened
         || (dailyPanel.dialog.open && gameMode !== 'daily')
@@ -794,6 +839,8 @@ async function startRunning() {
                 : gameMode === 'daily' ? dailyPersonalBest : null;
             flightCoach.beginFlight();
             flightMilestones.beginFlight(runBestBefore);
+            flightObjectives.beginFlight();
+            flightFeedback.beginFlight();
             activeFlightAircraftId = aircraftSelection.activeId;
             activeFlightAbility = eliteAbilityFor(activeFlightAircraftId, aircraftSelection.ownedIds);
             hovercraft.setAppearance(activeFlightAircraftId);
@@ -803,7 +850,7 @@ async function startRunning() {
         if (!friendPanel.dialog.open && !dailyPanel.dialog.open
             && document.activeElement?.matches?.(
                 '[data-daily-open], [data-daily-menu], [data-quick-open], ' +
-                '[data-start-flight], [data-restart], [data-pause-toggle]'
+                '[data-start-flight], [data-restart], [data-pause-toggle], [data-touch-pause]'
             )) {
             renderer.domElement.tabIndex = 0;
             renderer.domElement.focus({ preventScroll: true });
@@ -906,7 +953,7 @@ async function refreshLeaderboard() {
     leaderboardRefreshButton.disabled = true;
     leaderboardStatus.textContent = 'Loading global rankings…';
     try {
-        const response = await leaderboard.getLeaderboard();
+        const response = await leaderboard.getAllTimeLeaderboard();
         const entries = Array.isArray(response?.entries) ? response.entries : [];
         const rows = document.createDocumentFragment();
         for (const entry of entries) {
@@ -939,17 +986,9 @@ async function refreshLeaderboard() {
             ? 'Your registered nickname (permanent)'
             : 'Your pilot nickname (3–16 letters, numbers or underscores)';
 
-        const previousBest = response?.me ? Number(response.me.score) : null;
-        const beatsPreviousBest = previousBest === null
-            || scoreManager.currentScore > previousBest;
-        const canSubmit = gameMode === 'classic' && gameState === 'terminated' && !onlineSubmitted && beatsPreviousBest;
         leaderboardForm.hidden = true;
         scoreSubmitButton.hidden = true;
-        leaderboardStatus.textContent = !beatsPreviousBest && gameState === 'terminated'
-            ? `Your score must beat ${previousBest.toLocaleString()} points before you can submit again.`
-            : entries.length
-                ? 'All-time global scores (50 points per ring).'
-                : 'No global scores yet. Be the first!';
+        leaderboardStatus.textContent = 'Best verified score per pilot across Classic, Daily, and Friend Challenge.';
     } catch (error) {
         leaderboardStatus.textContent = `Could not load rankings: ${error.message}`;
     } finally {
@@ -1111,11 +1150,12 @@ function animate(time = 0) {
     // active-play seconds so low frame rates cannot extend its 30-second limit.
     const frameDelta = clock.getDelta();
     const delta = Math.min(frameDelta, 0.05);
-    if (document.hidden || platform.blocked || appDisposed) {
+    if (appDisposed) return;
+    if (document.hidden || platform.blocked || hangarPanel.dialog.open || renderRecovery.lost) {
         animationFrameId = requestAnimationFrame(animate);
         return;
     }
-    if (isPoki && (gameState === 'start' || gameState === 'paused')) {
+    if (gameState === 'start' || gameState === 'paused') {
         if (time - lastIdleFrameAt < 100) {
             animationFrameId = requestAnimationFrame(animate);
             return;
@@ -1174,6 +1214,7 @@ function animate(time = 0) {
             if (!collided) {
                 cameraDynamics.addRingImpulse();
                 audioEngine.playRingChime();
+                flightFeedback.collection(collectedEnergyRings, collectedSurgeRings, earnedSpeedLevels, scoreManager.ringBonus);
             }
             updateHud();
             // Alternate animation names; no synchronous layout read per pickup.
@@ -1197,7 +1238,10 @@ function animate(time = 0) {
         } else {
             scoreManager.update(delta, hovercraft.velocity);
 
-            if (nearMisses > 0) cameraDynamics.addShake(0.28 * nearMisses);
+            if (nearMisses > 0) {
+                cameraDynamics.addShake(0.28 * nearMisses);
+                flightFeedback.nearMiss(nearMisses);
+            }
 
             const isSurging = hovercraft.isSpeedSurging;
             const isBoosting = inputManager.state.boost
@@ -1247,7 +1291,10 @@ function resizeViewport() {
     resizeFrameId = 0;
     const width = Math.max(container.clientWidth, 1);
     const height = Math.max(container.clientHeight, 1);
-    cameraDynamics.resize(width / height, hovercraft);
+    const aspect = width / height;
+    if ((lastViewportAspect >= 1) !== (aspect >= 1)) inputManager.cancelPointers();
+    lastViewportAspect = aspect;
+    cameraDynamics.resize(aspect, hovercraft);
     resizeRenderer(renderer, container);
     hangarPanel.viewer.resize();
     terminalFrameDirty = true;
@@ -1261,15 +1308,29 @@ function handleResize() {
 
 function handleVisibilityChange() {
     if (document.hidden) {
-        launchGeneration++;
-        platform.cancelPending();
-        audioEngine.setPaused(true);
-        scoreManager.persistRecords();
-        hangarPanel.viewer.close();
+        suspendForBackground();
     } else if (hangarPanel.dialog.open) {
         hangarPanel.viewer.open(hangarPanel.previewId);
     }
-    if (document.hidden && gameState === 'running') setGameState('paused');
+}
+
+function suspendForBackground() {
+    launchGeneration++;
+    platform.cancelPending();
+    if (gameState === 'running') setGameState('paused');
+    inputManager.reset();
+    audioEngine.setPaused(true);
+    scoreManager.persistRecords();
+    hangarPanel.viewer.close();
+}
+
+function handlePageHide(event) {
+    if (event.persisted) suspendForBackground();
+    else disposeApp();
+}
+
+function handlePageShow(event) {
+    if (event.persisted && !appDisposed) { clock.getDelta(); handleVisibilityChange(); handleResize(); }
 }
 
 function pauseForMenu() {
@@ -1289,7 +1350,9 @@ function openDailyResults(event) {
 }
 
 function disposeApp() {
+    if (appDisposed) return;
     appDisposed = true;
+    renderRecovery.dispose();
     platform.dispose();
     removeScrollGuard();
     scoreManager.persistRecords();
@@ -1299,6 +1362,9 @@ function disposeApp() {
     window.removeEventListener('resize', handleResize);
     window.removeEventListener('orientationchange', handleResize);
     window.visualViewport?.removeEventListener('resize', handleResize);
+    viewportObserver?.disconnect();
+    window.removeEventListener('pagehide', handlePageHide);
+    window.removeEventListener('pageshow', handlePageShow);
     window.removeEventListener('keydown', handleGameKey);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     audioButton.removeEventListener('click', handleAudioToggle);
@@ -1378,7 +1444,24 @@ exitMenuButton.addEventListener('click', backToMainMenu);
 classicModeButton.addEventListener('click', returnToClassic);
 dailySubmitButton.addEventListener('click', openDailyResults);
 hangarUnlockOpen.addEventListener('click', openNewHangarUnlock);
-window.addEventListener('pagehide', disposeApp, { once: true });
+window.addEventListener('pagehide', handlePageHide);
+window.addEventListener('pageshow', handlePageShow);
+const viewportObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(handleResize) : null;
+viewportObserver?.observe(container);
+const renderRecovery = new WebGLRecovery(renderer.domElement, {
+    onLost: () => {
+        suspendForBackground();
+        const status = document.querySelector('[data-loading-status]');
+        status.textContent = 'Graphics interrupted. Waiting for recovery; reload if this continues.';
+        status.hidden = false;
+    },
+    onRestored: () => {
+        document.querySelector('[data-loading-status]').hidden = true;
+        clock.getDelta();
+        handleResize();
+        if (!document.hidden && hangarPanel.dialog.open) hangarPanel.viewer.open(hangarPanel.previewId);
+    },
+});
 setGameState('start');
 if (leaderboard.enabled || localOnly) {
     void hangarPanel.refreshProgress();

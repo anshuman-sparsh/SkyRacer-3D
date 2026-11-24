@@ -174,25 +174,29 @@ export class TrackSegment extends THREE.Group {
         road.position.y = -0.2;
         this.add(road);
 
-        for (const x of [-5.4, 5.4]) {
-            const laneGuide = new THREE.Mesh(geometries.lane, materials.lane);
-            laneGuide.position.set(x, -0.035, 0);
-            this.add(laneGuide);
-        }
-
-        for (const side of [-1, 1]) {
-            const guideRail = new THREE.Mesh(geometries.rail, materials.guide);
-            guideRail.position.set(side * (this.width * 0.5 + 0.35), 0.72, 0);
-            this.add(guideRail);
-        }
-
+        // Static same-material furniture shares draw calls without changing shapes.
+        const dummy = new THREE.Object3D();
+        const batch = (geometry, material, positions, name) => {
+            const mesh = new THREE.InstancedMesh(geometry, material, positions.length);
+            mesh.name = name;
+            positions.forEach((position, index) => {
+                dummy.position.set(...position); dummy.updateMatrix();
+                mesh.setMatrixAt(index, dummy.matrix);
+            });
+            mesh.instanceMatrix.needsUpdate = true;
+            mesh.computeBoundingSphere();
+            this.add(mesh);
+        };
+        batch(geometries.lane, materials.lane, [[-5.4,-0.035,0],[5.4,-0.035,0]], 'LaneGuides');
+        batch(geometries.rail, materials.guide,
+            [-1,1].map(side => [side * (this.width * 0.5 + 0.35),0.72,0]), 'GuideRails');
+        const pillars = [];
         for (const side of [-1, 1]) {
             for (const z of [-this.length * 0.32, this.length * 0.32]) {
-                const pillar = new THREE.Mesh(geometries.pillar, materials.pillar);
-                pillar.position.set(side * (this.width * 0.5 + 0.35), 0.05, z);
-                this.add(pillar);
+                pillars.push([side * (this.width * 0.5 + 0.35),0.05,z]);
             }
         }
+        batch(geometries.pillar, materials.pillar, pillars, 'RailPillars');
 
         // Three instanced batches per segment, not one draw call per landmark.
         // All landmarks stay beyond the rails and have no collision volumes.

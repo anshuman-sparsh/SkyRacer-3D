@@ -1,6 +1,17 @@
 const KEY = 'flight_coach_v1';
 const STEPS = ['steer', 'rings', 'hazard', 'boost'];
 const COMPLETE = 15;
+const RING_MILESTONES = [1, 5, 10, 25, 50, 100];
+const HINTS = Object.freeze({
+    steer: { id: 'steer', icon: 'WASD / ↑↓←→', text: 'Steer & change height' },
+    rings: { id: 'rings', icon: '○', text: 'Aim through centres · blue boosts, pink surges · reset 30 seconds' },
+    hazard: { id: 'hazard', icon: '✕', text: 'Red-orange X rings & barriers end your flight' },
+    boost: { id: 'boost', icon: 'SPACE / SHIFT', text: 'Hold to boost · release to stop' },
+});
+const TOUCH_HINTS = Object.freeze({ ...HINTS,
+    steer: { id: 'steer', icon: '↔ ↕', text: 'Drag to steer & change height' },
+    boost: { id: 'boost', icon: 'BOOST', text: 'Hold BOOST to go faster · release to stop' },
+});
 
 /** Short, non-blocking hints. Only active flying advances exposure time. */
 export class FlightCoach {
@@ -42,13 +53,7 @@ export class FlightCoach {
         if (this.elapsed >= 2.5 || (practiced && this.elapsed >= 1.5)) {
             this.mark(id); this.current = null;
         }
-        const hints = {
-            steer: this.touch ? ['↔ ↕', 'Drag to steer & change height'] : ['WASD / ↑↓←→', 'Steer & change height'],
-            rings: ['○', 'Fly through blue / pink rings · 30 seconds per ring'],
-            hazard: ['✕', 'Red-orange X rings & barriers end your flight'],
-            boost: this.touch ? ['BOOST', 'Hold BOOST to go faster · release to stop'] : ['SPACE / SHIFT', 'Hold to boost · release to stop'],
-        };
-        return { id, icon: hints[id][0], text: hints[id][1] };
+        return (this.touch ? TOUCH_HINTS : HINTS)[id];
     }
 }
 
@@ -60,7 +65,10 @@ export class FlightMilestones {
     constructor() { this.beginFlight(); }
     advance(delta, rings, score) {
         this.remaining = Math.max(0, this.remaining - Math.max(0, Number.isFinite(delta) ? delta : 0));
-        const reached = [1, 5, 10, 25, 50, 100].filter(target => this.rings < target && rings >= target).at(-1);
+        let reached = 0;
+        for (const target of RING_MILESTONES) {
+            if (this.rings < target && rings >= target) reached = target;
+        }
         const record = !this.recordShown && this.previousBest > 0 && score > this.previousBest;
         if (record) this.recordShown = true;
         if (reached || record) {

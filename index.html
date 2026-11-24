@@ -283,11 +283,18 @@
         <li><span>Distance</span><strong data-final-distance>0.0</strong></li>
       </ul>
       <p class="replay-comparison" data-replay-comparison hidden></p>
+      <p class="replay-comparison" data-last-friend-result role="status" hidden></p>
       <button class="state-overlay__action is-primary replay-primary" type="button" data-restart hidden>FLY AGAIN</button>
       <div class="replay-progress" data-replay-progress hidden>
         <span data-replay-progress-text></span>
         <progress data-replay-progress-bar max="1" value="0" aria-label="Progress toward next aircraft" hidden></progress>
       </div>
+      <section class="personal-objective" data-personal-objective hidden aria-label="Personal practice goal">
+        <strong data-objective-title></strong>
+        <p data-objective-text></p>
+        <progress max="1" value="0" aria-label="Personal goal progress" hidden></progress>
+        <small>Optional practice · no unlock rewards. Blue / pink rings reset the 30-second timer.</small>
+      </section>
       <div class="state-overlay__records">
         <p class="state-overlay__best" data-overlay-best>Best Score <strong data-overlay-best-value>0</strong></p>
         <p class="state-overlay__best" data-overlay-best-rings>Best Rings <strong data-overlay-best-rings-value>0</strong></p>

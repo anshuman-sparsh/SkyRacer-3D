@@ -99,7 +99,8 @@ export class FriendChallengePanel {
             this.status.textContent = this.challenge.expired
                 ? 'This challenge has expired.'
                 : 'Beat this score to win. Your flight must be verified by the server.';
-            this.updateOutcome();
+            if (Number.isSafeInteger(response.ownResult?.score)) this.setVerifiedResult(response.ownResult);
+            else this.updateOutcome();
         } catch (error) {
             this.challenge = null;
             this.details.hidden = true;
@@ -125,10 +126,11 @@ export class FriendChallengePanel {
 
     /** Preserve a server-confirmed result across reopening and refreshing the dialog. */
     setVerifiedResult(result) {
+        const points = Number.isSafeInteger(result?.score) ? ` · ${result.score.toLocaleString()} points` : '';
         this.verifiedOutcome = result === null ? null
             : (result.won
                 ? 'Challenge beaten — verified by SkyRacer!'
-                : 'Finished! Your verified score did not beat the target.');
+                : 'Finished! Your verified score did not beat the target.') + points;
         this.updateOutcome();
     }
 

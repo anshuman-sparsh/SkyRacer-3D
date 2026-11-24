@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-poki/
+artifacts/poki-release/
 vite-preview.log
 .DS_Store
 .env

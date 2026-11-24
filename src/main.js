@@ -150,6 +150,7 @@ const coachIcon = document.querySelector('[data-coach-icon]');
 const coachText = document.querySelector('[data-coach-text]');
 const milestoneElement = document.querySelector('[data-flight-milestone]');
 const replayComparison = document.querySelector('[data-replay-comparison]');
+const friendResultNotice = document.querySelector('[data-last-friend-result]');
 const replayProgress = document.querySelector('[data-replay-progress]');
 const replayProgressText = document.querySelector('[data-replay-progress-text]');
 const replayProgressBar = document.querySelector('[data-replay-progress-bar]');
@@ -172,7 +173,7 @@ let activeFlightAbility = eliteAbilityFor(activeFlightAircraftId);
 let activeDailyRun = null;
 let activeFriendRun = null;
 let lastClassicRunId = null;
-let friendSubmitting = false;
+let latestFriendResult = null;
 let friendStartPending = false;
 let dailySubmitting = false;
 let dailyPersonalBest = null;
@@ -434,6 +435,14 @@ function updateRingDeadlineDisplay() {
     ringDeadlineElement.classList.toggle('is-critical', remaining <= 3);
 }
 
+function renderFriendResult() {
+    const result = latestFriendResult;
+    friendResultNotice.hidden = !result || (gameState !== 'start' && !(gameState === 'terminated' && gameMode === 'friend'));
+    if (!friendResultNotice.hidden) {
+        friendResultNotice.textContent = `Friend Challenge · ${result.score.toLocaleString()} points · ${result.status}`;
+    }
+}
+
 function setGameState(nextState, terminationReason = 'collision') {
     const wasTerminated = gameState === 'terminated';
     gameState = nextState;
@@ -445,7 +454,8 @@ function setGameState(nextState, terminationReason = 'collision') {
         coachElement.hidden = true; milestoneElement.hidden = true;
         lastCoachId = ''; lastMilestone = '';
     }
-    replayComparison.hidden = nextState !== 'terminated';
+    replayComparison.hidden = nextState !== 'terminated' || gameMode === 'friend';
+    renderFriendResult();
     replayProgress.hidden = nextState !== 'terminated' && nextState !== 'start';
     if (nextState === 'start') updateReplayProgress();
     platform.transition(nextState);
@@ -527,6 +537,9 @@ function setGameState(nextState, terminationReason = 'collision') {
     if (copy) {
         stateTitle.textContent = copy[0];
         stateMessage.textContent = copy[1];
+        if (isTerminated && gameMode === 'friend' && terminationReason === 'collision') {
+            stateMessage.textContent = 'Steer around orange barriers on your next flight.';
+        }
     }
 
     updateModeDisplays();
@@ -553,22 +566,28 @@ function setGameState(nextState, terminationReason = 'collision') {
                 });
         }
     }
-    if (isTerminated && gameMode === 'friend' && activeFriendRun && !friendSubmitting) {
+    if (isTerminated && !wasTerminated && gameMode === 'friend' && activeFriendRun) {
         const finishedRun = activeFriendRun;
-        friendSubmitting = true;
+        const receipt = { score: scoreManager.currentScore, status: 'Verifying…' };
+        latestFriendResult = receipt;
+        renderFriendResult();
         friendPanel.outcome.textContent = 'Verifying your friend challenge result…';
         void friendService.finish(finishedRun.runId, {
             score: scoreManager.currentScore, rings: scoreManager.ringsCollected,
             distance: scoreManager.distance,
         }).then(result => {
+            receipt.status = result.won ? 'Verified win' : 'Verified finish · target not beaten';
+            renderFriendResult();
+            void hangarPanel.refreshProgress();
             if (activeFriendRun === finishedRun) {
-                friendPanel.setVerifiedResult(result);
-                void hangarPanel.refreshProgress();
+                friendPanel.setVerifiedResult({ ...result, score: receipt.score });
             }
         }).catch(error => {
+            receipt.status = 'Could not confirm the result: ' + error.message;
+            renderFriendResult();
             if (activeFriendRun === finishedRun) friendPanel.outcome.textContent =
                 'Could not verify this result: ' + error.message;
-        }).finally(() => { friendSubmitting = false; });
+        });
     }
     if (isTerminated && gameMode === 'daily' && activeDailyRun
         && !activeDailyRun.submitted && activeDailyRun.nickname
@@ -666,7 +685,6 @@ function returnToClassic() {
         || (gameState !== 'start' && gameState !== 'terminated')) return;
     activeDailyRun = null;
     activeFriendRun = null;
-    friendSubmitting = false;
     dailySubmitting = false;
     dailyLastError = '';
     gameMode = 'classic';
@@ -703,7 +721,6 @@ async function launchFriendChallenge(challenge) {
         activeDailyRun = null;
         resetForNewMode();
         activeFriendRun = registered;
-        friendSubmitting = false;
         friendPanel.setVerifiedResult(null);
         return startRunning();
     } finally {
@@ -936,7 +953,7 @@ async function refreshLeaderboard() {
     leaderboardRefreshButton.disabled = true;
     leaderboardStatus.textContent = 'Loading global rankings…';
     try {
-        const response = await leaderboard.getLeaderboard();
+        const response = await leaderboard.getAllTimeLeaderboard();
         const entries = Array.isArray(response?.entries) ? response.entries : [];
         const rows = document.createDocumentFragment();
         for (const entry of entries) {
@@ -969,17 +986,9 @@ async function refreshLeaderboard() {
             ? 'Your registered nickname (permanent)'
             : 'Your pilot nickname (3–16 letters, numbers or underscores)';
 
-        const previousBest = response?.me ? Number(response.me.score) : null;
-        const beatsPreviousBest = previousBest === null
-            || scoreManager.currentScore > previousBest;
-        const canSubmit = gameMode === 'classic' && gameState === 'terminated' && !onlineSubmitted && beatsPreviousBest;
         leaderboardForm.hidden = true;
         scoreSubmitButton.hidden = true;
-        leaderboardStatus.textContent = !beatsPreviousBest && gameState === 'terminated'
-            ? `Your score must beat ${previousBest.toLocaleString()} points before you can submit again.`
-            : entries.length
-                ? 'All-time global scores (50 points per ring).'
-                : 'No global scores yet. Be the first!';
+        leaderboardStatus.textContent = 'Best verified score per pilot across Classic, Daily, and Friend Challenge.';
     } catch (error) {
         leaderboardStatus.textContent = `Could not load rankings: ${error.message}`;
     } finally {

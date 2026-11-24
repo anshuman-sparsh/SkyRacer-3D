@@ -123,9 +123,9 @@ export class LeaderboardService {
         finally { this.authPromise = null; }
     }
 
-    async #request(method, body = null, retry = true) {
+    async #request(method, body = null, retry = true, query = '') {
         const session = await this.#ensureSession();
-        const response = await this.fetchImpl(`${this.url}/functions/v1/leaderboard`, {
+        const response = await this.fetchImpl(`${this.url}/functions/v1/leaderboard${query}`, {
             method,
             headers: {
                 apikey: this.key,
@@ -136,7 +136,7 @@ export class LeaderboardService {
         });
         if (response.status === 401 && retry) {
             await this.#ensureSession(true);
-            return this.#request(method, body, false);
+            return this.#request(method, body, false, query);
         }
         return asJson(response);
     }
@@ -283,6 +283,10 @@ export class LeaderboardService {
         });
         if (result?.accepted) this.#save(NAME_KEY, nickname);
         return result;
+    }
+
+    async getAllTimeLeaderboard() {
+        return this.#request('GET', null, true, '?scope=all-time');
     }
 
     async getLeaderboard() {

@@ -50,6 +50,15 @@ test('friend dialog shows server target and never automatically accepts challeng
     assert.equal(f.get('friend-dialog').open,false);
   }finally{f.restore()}
 });
+test('opening the challenge link in a fresh panel displays the pilot’s saved score and win',async()=>{
+  const f=createPanel({resolve:async()=>({id:ID,creatorNickname:'Pilot_1',targetScore:600,
+    expiresAt:'2099-01-01T00:00:00Z',ownResult:{score:239504,won:true}})});
+  try {
+    await f.panel.open();
+    assert.match(f.get('friend-outcome').textContent,/Challenge beaten/);
+    assert.ok(f.get('friend-outcome').textContent.includes((239504).toLocaleString()));
+  } finally {f.restore();}
+});
 test('verified friend results stay visible on modal reopen',async()=>{
   const f=createPanel();
   try{

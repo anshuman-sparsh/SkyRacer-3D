@@ -21,7 +21,13 @@ export default {
         .select('id,creator_nickname,target_score,expires_at').eq('id', uuid).maybeSingle();
       if (error) return fail('Challenge temporarily unavailable.', 503);
       if (!data) return fail('Challenge not found.', 404);
-      return ok(snapshot(data));
+      const { data: ownResult, error: resultError } = await db.from('friend_runs')
+        .select('score,won,submitted_at')
+        .eq('challenge_id', uuid).eq('challenger_user_id', uid)
+        .not('submitted_at', 'is', null)
+        .order('submitted_at', { ascending: false }).order('run_id').limit(1).maybeSingle();
+      if (resultError) return fail('Challenge result temporarily unavailable.', 503);
+      return ok({ ...snapshot(data), ownResult });
     }
     if (request.method !== 'POST') return fail('Method not allowed.', 405);
     if (Number(request.headers.get('content-length') || 0) > 2048) return fail('Request too large.', 413);

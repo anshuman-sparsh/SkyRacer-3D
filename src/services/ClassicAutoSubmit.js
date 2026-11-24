@@ -161,7 +161,7 @@ export class ClassicAutoSubmit {
                         nickname, score: candidate.score, rings: candidate.rings, distance: candidate.distance });
                     if (!result?.accepted) throw Error('The leaderboard did not accept this run.');
                     this.#removeThrough(candidate.score);
-                    if (!this.pending) this.#emit('saved', 'New personal best saved to the global leaderboard!');
+                    if (!this.pending) this.#emit('saved', 'New Classic personal best verified!');
                 } catch (error) {
                     if (!this.candidates.includes(candidate)) continue;
                     if (error?.code === 'RUN_EXPIRED' || error?.code === 'RUN_UNAVAILABLE') {
